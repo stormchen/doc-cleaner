@@ -80,6 +80,7 @@ def warn_config_secrets(config):
         (["ai", "groq", "api_key"], "GROQ_API_KEY"),
         (["ai", "nvidia", "api_key"], "NVIDIA_API_KEY"),
         (["ai", "ollama", "api_key"], "OLLAMA_API_KEY"),
+        (["ai", "openai", "api_key"], "OPENAI_API_KEY"),
         (["pdf", "password"], "PDF_PASSWORD"),
     ]
     for keys, env_name in secret_paths:
@@ -211,6 +212,21 @@ def create_ai_backend(ai_mode, config):
         model = mlx_config.get("model", "mlx-community/Qwen3-4B-4bit")
         max_tokens = mlx_config.get("max_tokens", 4096)
         return MLXBackend(model=model, max_tokens=max_tokens)
+
+    if ai_mode == "openai":
+        from ai.openai import OpenAIBackend
+
+        openai_config = ai_config.get("openai", {})
+        model = openai_config.get("model", "gpt-4o")
+        base_url = openai_config.get("base_url", "http://localhost:8000/v1")
+        api_key = os.getenv("OPENAI_API_KEY") or openai_config.get("api_key", "")
+        timeout = openai_config.get("timeout", 120)
+        return OpenAIBackend(
+            api_key=api_key,
+            model=model,
+            base_url=base_url,
+            timeout=timeout,
+        )
 
     logger.error(f"Unknown AI backend: {ai_mode}")
     sys.exit(EXIT_NO_INPUT)
@@ -466,7 +482,7 @@ def process_file(filepath, ai_backend, prompt, config, output_dir, dry_run=False
         return "ok", output_path
 
     except Exception as e:
-        logger.error(f"  Failed: {filename}: {e}")
+        logger.exception(f"  Failed: {filename}: {e}")
         return "error", None
 
 
@@ -529,7 +545,7 @@ def main():
     parser.add_argument("--input", "-i", required=True, help="file or directory to process")
     parser.add_argument("--output-dir", "-o", default="./output", help="output directory (default: ./output)")
     parser.add_argument("--config", default=None, help="path to config JSON (default: <script-dir>/config.json)")
-    parser.add_argument("--ai", choices=["gemini", "groq", "nvidia", "ollama", "mlx", "none"], default=None, help="AI backend (default: from config or gemini)")
+    parser.add_argument("--ai", choices=["gemini", "groq", "nvidia", "ollama", "mlx", "openai", "none"], default=None, help="AI backend (default: from config or gemini)")
     parser.add_argument("--password", default=None, help="PDF decryption password (overrides .env and config)")
     parser.add_argument("--summary", action="store_true", help="print JSON summary to stdout after processing")
     parser.add_argument("--dry-run", action="store_true", help="preview without writing files")

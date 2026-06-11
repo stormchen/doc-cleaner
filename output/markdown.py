@@ -6,6 +6,7 @@ Two modes:
 2. Raw mode (--ai none): renders extracted text as-is with minimal formatting
 """
 import datetime
+import json
 import logging
 
 logger = logging.getLogger(__name__)
@@ -60,6 +61,42 @@ def render_ai_output(data, filename, source_path=None, frontmatter=True):
     summary = data.get("summary") or ""
     refined_markdown = data.get("refined_markdown") or ""
     tags = data.get("tags") or []
+
+    # Defensive conversions to prevent type errors on concatenation
+    if not isinstance(title, str):
+        title = str(title)
+
+    if not isinstance(summary, str):
+        if isinstance(summary, (dict, list)):
+            summary = json.dumps(summary, ensure_ascii=False)
+        else:
+            summary = str(summary)
+
+    if not isinstance(refined_markdown, str):
+        if isinstance(refined_markdown, dict):
+            # Extract common nested text fields if present
+            extracted = False
+            for k in ["markdown", "content", "text", "body", "refined_markdown"]:
+                if k in refined_markdown and isinstance(refined_markdown[k], str):
+                    refined_markdown = refined_markdown[k]
+                    extracted = True
+                    break
+            if not extracted:
+                # Otherwise, serialize the dict structure gracefully
+                parts_str = []
+                for k, v in refined_markdown.items():
+                    if isinstance(v, str):
+                        parts_str.append(v)
+                    elif isinstance(v, (dict, list)):
+                        parts_str.append(json.dumps(v, ensure_ascii=False, indent=2))
+                if parts_str:
+                    refined_markdown = "\n\n".join(parts_str)
+                else:
+                    refined_markdown = json.dumps(refined_markdown, ensure_ascii=False, indent=2)
+        elif isinstance(refined_markdown, list):
+            refined_markdown = "\n".join(str(x) for x in refined_markdown)
+        else:
+            refined_markdown = str(refined_markdown)
 
     parts = []
 
