@@ -39,6 +39,10 @@ def parse(filepath, max_chars_per_sheet=8000):
             if df is None:
                 df = pd.read_csv(filepath, encoding="utf-8", encoding_errors="replace")
             sheets = {"CSV": df}
+        elif ext == ".xls":
+            # xlrd 2.x only supports .xls — explicit engine prevents ImportError
+            # on environments where openpyxl is present but xlrd is not
+            sheets = pd.read_excel(filepath, sheet_name=None, engine="xlrd")
         else:
             sheets = pd.read_excel(filepath, sheet_name=None)
 
@@ -64,8 +68,15 @@ def parse(filepath, max_chars_per_sheet=8000):
             parts.append(f"## Sheet: {name}\n\n{md}")
         return "\n\n".join(parts)
 
-    except ImportError:
-        logger.warning("pandas not installed, falling back to openpyxl")
+    except ImportError as e:
+        # Distinguish missing pandas from missing tabulate (needed by to_markdown)
+        if "tabulate" in str(e):
+            logger.warning(
+                "tabulate not installed — pipe-table output unavailable. "
+                "Install with: pip install tabulate"
+            )
+        else:
+            logger.warning(f"pandas not installed, falling back to openpyxl ({e})")
     except Exception as e:
         logger.warning(f"pandas parse failed: {e}, falling back to openpyxl")
 

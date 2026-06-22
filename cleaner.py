@@ -7,6 +7,16 @@ CJK-friendly. Table-friendly. Privacy-first.
 Part of the notoriouslab open-source toolkit.
 """
 import os
+
+# protobuf descriptor-pool guard (D10): force the pure-Python protobuf
+# implementation before anything can import the C/upb one. numbers-parser and
+# keynote-parser vendor the same Apple .proto names and the upb pool aborts when
+# both load in one process. Set here at the CLI/GUI entry root as defense in
+# depth — parsers/numbers.py and parsers/iwork.py set it too, but those load
+# lazily, so guarding the root protects against a future eager protobuf import.
+# Idempotent; respects an explicit user override.
+os.environ.setdefault("PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION", "python")
+
 import re
 import sys
 import json
@@ -26,7 +36,12 @@ EXIT_PARTIAL = 1        # some files failed
 EXIT_NO_INPUT = 2       # no processable files found or config error
 
 # Supported file extensions
-SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".doc", ".xlsx", ".xls", ".csv", ".txt", ".md", ".pptx", ".ppt", ".dxf"}
+SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".doc", ".xlsx", ".xls", ".csv", ".txt", ".md", ".pptx", ".ppt", ".dxf", ".jsonl", ".numbers", ".pages", ".key", ".epub"}
+
+# Upper bound on files collected from a single recursive directory scan (GUI
+# folder-drop, D3). Generous for real personal folders, but bounds a pathological
+# tree. When hit, collection stops and a warning is logged (no silent truncation).
+MAX_RECURSIVE_FILES = 1000
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 
@@ -271,6 +286,16 @@ def parse_file(filepath, config):
         # Classify (ODL text informs the decision if available)
         pdf_type, raw_text, metadata = classify(target, odl_text=odl_text)
 
+        # For NATIVE and LAYOUT_BROKEN PDFs without ODL: re-extract with table
+        # detection so tables are preserved as Markdown pipe tables.
+        # LAYOUT_BROKEN is triggered when short_line_ratio > 70% — a PDF
+        # that is mostly tables fires this heuristic because table cells create
+        # many short lines, but find_tables() can still recover the structure.
+        if pdf_type in (PdfType.NATIVE, PdfType.LAYOUT_BROKEN) and odl_text is None:
+            table_text = pdf.extract_text_with_tables(target)
+            if table_text:
+                raw_text = table_text
+
         cutoff_patterns = config.get("ad_truncation_patterns")
         strip_patterns = config.get("ad_strip_patterns")
         strip_urls = config.get("strip_urls", True)
@@ -339,6 +364,22 @@ def parse_file(filepath, config):
         from parsers.text import parse
         text = parse(filepath)
 
+    elif ext == ".jsonl":
+        from parsers.jsonl import parse
+        text = parse(filepath)
+
+    elif ext == ".numbers":
+        from parsers.numbers import parse
+        text = parse(filepath)
+
+    elif ext in (".pages", ".key"):
+        from parsers.iwork import parse
+        text = parse(filepath)
+
+    elif ext == ".epub":
+        from parsers.epub import parse
+        text = parse(filepath)
+
     else:
         logger.warning(f"Unsupported file type: {ext}")
 
@@ -384,6 +425,26 @@ def process_file(filepath, ai_backend, prompt, config, output_dir, output_format
         if not text and not images:
             logger.warning(f"  No content extracted from {filename}")
             return "no_content", None
+
+        # JSONL transcripts are pre-formatted Markdown — skip AI and write directly
+        ext = os.path.splitext(filepath)[1].lower()
+        if ext == ".jsonl":
+            # JSONL transcripts are pre-formatted Markdown — bypass AI and PII redaction intentionally.
+            # Output contains full conversation content; callers should treat the result as sensitive.
+            logger.info("  JSONL transcript: AI and PII redaction bypassed — output contains full conversation")
+            from output.markdown import render_raw_output
+            frontmatter = config.get("output", {}).get("frontmatter", True)
+            final_text = render_raw_output(text, filename=filename, source_path=filepath, frontmatter=frontmatter)
+            try:
+                fd, tmp_path = tempfile.mkstemp(dir=output_dir, suffix=".tmp")
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    f.write(final_text)
+                os.replace(tmp_path, output_path)
+            except OSError as e:
+                logger.error(f"  Write error for {filename}: {e}")
+                return "write_error", None
+            logger.info(f"  → {output_path}")
+            return "ok", output_path
 
         # PII redaction (opt-in via config)
         pii_config = config.get("pii", {})
@@ -524,8 +585,51 @@ def process_file(filepath, ai_backend, prompt, config, output_dir, output_format
         return "error", None
 
 
-def collect_files(input_path):
-    """Collect processable files from a path (file or directory)."""
+def _collect_dir_recursive(input_path, real_root):
+    """Recursively collect supported files under a directory (GUI folder-drop, D3).
+
+    Preserves the symlink-escape guard (a file's resolved path must stay under
+    the directory root), does not follow symlinked subdirectories
+    (``followlinks=False``), traverses deterministically (sorted), and stops at
+    ``MAX_RECURSIVE_FILES``. Returns ``(files, capped)`` where ``capped`` is True
+    only when MORE than the cap existed (so exactly-cap files is not a false
+    positive). Collects one past the cap to distinguish the two cases.
+    """
+    files = []
+    capped = False
+    for dirpath, dirnames, filenames in os.walk(input_path, followlinks=False):
+        dirnames.sort()  # deterministic descent order
+        for name in sorted(filenames):
+            if os.path.splitext(name)[1].lower() not in SUPPORTED_EXTENSIONS:
+                continue
+            fp = os.path.realpath(os.path.join(dirpath, name))
+            # P4 security: reject files whose resolved path escapes the root.
+            if not fp.startswith(real_root + os.sep) and fp != real_root:
+                logger.warning(f"Skipping symlink escape: {name}")
+                continue
+            files.append(fp)
+            if len(files) > MAX_RECURSIVE_FILES:  # collected cap+1 → truly more exist
+                capped = True
+                break
+        if capped:
+            break
+    if capped:
+        files = files[:MAX_RECURSIVE_FILES]
+        logger.warning(
+            f"Recursive scan capped at {MAX_RECURSIVE_FILES} files; "
+            "additional files were not collected"
+        )
+    return files, capped
+
+
+def collect_files(input_path, recursive=False):
+    """Collect processable files from a path (file or directory).
+
+    With ``recursive=False`` (default, used by the CLI) a directory is scanned
+    one level deep and subdirectories are skipped — behavior is byte-for-byte
+    unchanged. With ``recursive=True`` (used by the GUI folder-drop) a directory
+    is walked recursively via :func:`_collect_dir_recursive`.
+    """
     if os.path.isfile(input_path):
         # Security: resolve symlinks to prevent directory traversal
         real_path = os.path.realpath(input_path)
@@ -540,6 +644,9 @@ def collect_files(input_path):
 
     if os.path.isdir(input_path):
         real_root = os.path.realpath(input_path)
+        if recursive:
+            # Drop the capped flag so the CLI return type stays a plain list.
+            return _collect_dir_recursive(input_path, real_root)[0]
         files = []
         skipped_dirs = []
         for f in sorted(os.listdir(input_path)):
@@ -628,10 +735,6 @@ def main():
     # AI mode priority: CLI --ai > config.json > default "gemini"
     ai_mode = args.ai or config.get("ai", {}).get("backend", "gemini")
 
-    # AI backend
-    ai_backend = create_ai_backend(ai_mode, config)
-    prompt = load_prompt(config, config_path=config_path) if ai_backend else None
-
     # Collect files
     files = collect_files(args.input)
     if not files:
@@ -642,18 +745,25 @@ def main():
     if args.dry_run:
         logger.info("[DRY RUN] No files will be written.")
 
-    # Process
-    results = []
-    for filepath in files:
-        status, output_path = process_file(
-            filepath, ai_backend, prompt, config, args.output_dir,
-            output_format=args.format, dry_run=args.dry_run,
-        )
-        results.append({
-            "file": os.path.basename(filepath),
-            "output": os.path.relpath(output_path) if output_path else None,
-            "status": status,
-        })
+    # Process (delegates to core.py — config+backend+prompt built once and reused)
+    from core import convert_files
+    raw_results = convert_files(
+        files,
+        output_resolver=lambda _: args.output_dir,
+        ai=ai_mode,
+        output_format=args.format,
+        config=config,
+        config_path=config_path,
+        dry_run=args.dry_run,
+    )
+    results = [
+        {
+            "file": r["file"],
+            "output": os.path.relpath(r["output"]) if r["output"] else None,
+            "status": r["status"],
+        }
+        for r in raw_results
+    ]
 
     success = sum(1 for r in results if r["status"] in ("ok", "dry_run"))
     logger.info(f"Done: {success}/{len(files)} files processed.")
