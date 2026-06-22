@@ -60,16 +60,17 @@ pip install ollama                        # Ollama 本地
 pip install pikepdf                       # PDF 解密
 pip install pdf2image                     # PDF 視覺模式（另需安裝 poppler）
 
-# 6.（選裝）額外格式支援
+# 6. （選裝）額外格式與功能支援
 pip install python-pptx                   # PPTX 投影片
 pip install ezdxf                         # DXF 工程圖
+pip install markdown                      # EPUB 電子書排版（推薦，提供更精緻的格式轉換）
 # PPT / DOC 舊格式：macOS 內建 textutil，無需額外安裝
 
-# 5. 設定
+# 7. 設定
 cp config.example.json config.json        # 編輯 AI 模型、廣告正則等
 cp .env.example .env                      # 填入 GEMINI_API_KEY / GROQ_API_KEY（依後端而定）
 
-# 6. 執行
+# 8. 執行
 python cleaner.py --input 對帳單.pdf
 # 輸出：./output/對帳單.md
 ```
@@ -104,6 +105,7 @@ python cleaner.py [選項]
   --ai              gemini | groq | ollama | none（預設：config 裡的 backend 或 gemini）
   --password        PDF 解密密碼（優先於 .env 和 config）
   --summary         處理完後輸出 JSON 摘要到 stdout（方便腳本和 AI agent 解析）
+  --format, -f      輸出格式：md (預設) | epub | both (同時產出 Markdown 與 EPUB)
   --dry-run         預覽不寫入
   --verbose         啟用除錯日誌
   --version         顯示版本

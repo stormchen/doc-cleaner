@@ -29,3 +29,9 @@ Pillow>=9.0.0
 
 # PowerPoint extraction (optional: pip install python-pptx)
 # python-pptx>=0.6.21
+
+# EPUB support (optional: pip install markdown)
+# markdown>=3.4.0
+
+# Testing (optional: pip install pytest)
+# pytest>=7.0.0

@@ -56,17 +56,18 @@ pip install ollama                        # for local Ollama
 pip install pikepdf                       # PDF decryption
 pip install pdf2image                     # PDF vision mode (requires poppler)
 
-# 6. (Optional) Extra format support
+# 6. (Optional) Extra format & feature support
 pip install python-pptx                   # PPTX presentations
 pip install ezdxf                         # DXF engineering drawings
+pip install markdown                      # EPUB typesetting support (recommended for rich EPUB output)
 # PPT / DOC legacy formats: macOS textutil built-in, no extra install needed
 
-# 5. Configure
+# 7. Configure
 cp config.example.json config.json
 cp .env.example .env
 # Edit .env — set GEMINI_API_KEY or GROQ_API_KEY if using a cloud backend
 
-# 6. Run
+# 8. Run
 python cleaner.py --input statement.pdf
 # Output: ./output/statement.md
 ```
@@ -101,6 +102,7 @@ python cleaner.py [options]
   --ai              gemini | groq | ollama | none (default: from config or gemini)
   --password        PDF decryption password (overrides .env and config)
   --summary         Print JSON summary to stdout after processing (for scripts and AI agents)
+  --format, -f      Output format: md (default) | epub | both (both Markdown and EPUB)
   --dry-run         Preview without writing files
   --verbose         Enable debug logging
   --version         Print version and exit
