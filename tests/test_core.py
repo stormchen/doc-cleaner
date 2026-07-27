@@ -255,3 +255,45 @@ class TestCLIOutputUnchanged:
         content_core = Path(out_core).read_text(encoding="utf-8")
 
         assert _strip_timestamp(content_direct) == _strip_timestamp(content_core)
+
+
+class TestChineseConversion:
+    def test_markdown_and_epub_zh_hant_conversion(self, tmp_path):
+        """Verify that enabling epub_zh_hant translates both markdown and epub output."""
+        simplified_txt = tmp_path / "simplified.txt"
+        simplified_txt.write_text("测试简体中文转换。包含软件、硬盘與内存。", encoding="utf-8")
+        
+        from cleaner import process_file
+        
+        config = {
+            "output": {
+                "epub_language": "zh-TW",
+                "epub_zh_hant": True,
+                "epub_opencc_config": "s2twp"
+            }
+        }
+        
+        out_dir = str(tmp_path / "out")
+        os.makedirs(out_dir, exist_ok=True)
+        
+        status, out_path = process_file(
+            str(simplified_txt), None, None, config, out_dir, output_format="both"
+        )
+        
+        assert status == "ok"
+        
+        # 1. Verify markdown output is converted
+        md_file = Path(out_dir) / "simplified.md"
+        assert md_file.exists()
+        md_content = md_file.read_text(encoding="utf-8")
+        assert "測試簡體中文轉換" in md_content
+        assert "包含軟體、硬碟與記憶體" in md_content
+        
+        # 2. Verify epub output is converted
+        epub_file = Path(out_dir) / "simplified.epub"
+        assert epub_file.exists()
+        import zipfile
+        with zipfile.ZipFile(epub_file, "r") as zf:
+            content_xhtml = zf.read("OEBPS/text/content.xhtml").decode("utf-8")
+            assert "測試簡體中文轉換" in content_xhtml
+            assert "包含軟體、硬碟與記憶體" in content_xhtml

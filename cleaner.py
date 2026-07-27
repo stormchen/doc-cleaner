@@ -97,6 +97,8 @@ def warn_config_secrets(config):
         (["ai", "ollama", "api_key"], "OLLAMA_API_KEY"),
         (["ai", "openai", "api_key"], "OPENAI_API_KEY"),
         (["pdf", "password"], "PDF_PASSWORD"),
+        (["x_article", "auth_token"], "X_AUTH_TOKEN"),
+        (["x_article", "ct0"], "X_CT0"),
     ]
     for keys, env_name in secret_paths:
         obj = config
@@ -249,12 +251,17 @@ def create_ai_backend(ai_mode, config):
 
 def parse_file(filepath, config):
     """
-    Parse a document file and return extracted text + optional images.
+    Parse a document file or X Article URL and return extracted text + optional images.
 
     Returns: (text, images)
         - text: extracted text string (may be empty for scanned PDFs)
         - images: list of PIL.Image objects (for PDF vision mode), or None
     """
+    from parsers.x_article import is_x_article_url, parse as parse_x_article
+    if is_x_article_url(filepath):
+        text, _ = parse_x_article(filepath, config)
+        return text, None
+
     ext = os.path.splitext(filepath)[1].lower()
     pdf_config = config.get("pdf", {})
     images = None
@@ -394,8 +401,14 @@ def process_file(filepath, ai_backend, prompt, config, output_dir, output_format
         - status: "ok" | "dry_run" | "no_content" | "write_error" | "error"
         - output_path: path to output file (primary format), or None on failure
     """
-    filename = os.path.basename(filepath)
-    stem = os.path.splitext(filename)[0]
+    from parsers.x_article import is_x_article_url, extract_article_id
+    if is_x_article_url(filepath):
+        art_id = extract_article_id(filepath)
+        filename = f"x_article_{art_id}.md"
+        stem = f"x_article_{art_id}"
+    else:
+        filename = os.path.basename(filepath)
+        stem = os.path.splitext(filename)[0]
 
     # Resolve the collision suffix (if any) first on the primary format
     primary_ext = ".md" if output_format in ("md", "both") else ".epub"
@@ -499,6 +512,32 @@ def process_file(filepath, ai_backend, prompt, config, output_dir, output_format
                 if "summary" in data and isinstance(data["summary"], str):
                     data["summary"], _ = redact_pii(data["summary"], enabled_patterns=pii_patterns)
 
+        # 0. Simplified to Traditional Chinese conversion if enabled
+        epub_zh_hant = config.get("output", {}).get("epub_zh_hant", False)
+        if epub_zh_hant:
+            epub_opencc_config = config.get("output", {}).get("epub_opencc_config", "s2twp")
+            try:
+                from opencc import OpenCC
+                cc = OpenCC(epub_opencc_config)
+                if data is not None:
+                    if "title" in data and isinstance(data["title"], str):
+                        data["title"] = cc.convert(data["title"])
+                    if "summary" in data and isinstance(data["summary"], str):
+                        data["summary"] = cc.convert(data["summary"])
+                    if "refined_markdown" in data and isinstance(data["refined_markdown"], str):
+                        data["refined_markdown"] = cc.convert(data["refined_markdown"])
+                    if "tags" in data and isinstance(data["tags"], list):
+                        data["tags"] = [cc.convert(t) if isinstance(t, str) else t for t in data["tags"]]
+                else:
+                    text = cc.convert(text)
+            except ImportError:
+                logger.warning(
+                    "opencc-python-reimplemented is not installed. Simplified to Traditional Chinese conversion skipped. "
+                    "Install with: pip install opencc-python-reimplemented"
+                )
+            except Exception as e:
+                logger.error(f"Failed to convert Simplified to Traditional Chinese: {e}")
+
         # 1. Render Markdown if needed
         content_md = None
         if output_format in ("md", "both"):
@@ -526,13 +565,17 @@ def process_file(filepath, ai_backend, prompt, config, output_dir, output_format
         if output_format in ("epub", "both"):
             from output.epub import render_ai_epub, render_raw_epub
             epub_lang = config.get("output", {}).get("epub_language", "zh-TW")
+            epub_zh_hant = config.get("output", {}).get("epub_zh_hant", False)
+            epub_opencc_config = config.get("output", {}).get("epub_opencc_config", "s2twp")
             if data is not None:
                 content_epub = render_ai_epub(
-                    data, filename, source_path=filename, language=epub_lang
+                    data, filename, source_path=filename, language=epub_lang,
+                    convert_zh_hant=epub_zh_hant, opencc_config=epub_opencc_config
                 )
             else:
                 content_epub = render_raw_epub(
-                    text, filename, source_path=filename, language=epub_lang
+                    text, filename, source_path=filename, language=epub_lang,
+                    convert_zh_hant=epub_zh_hant, opencc_config=epub_opencc_config
                 )
 
         # Define safe write helper
@@ -623,13 +666,17 @@ def _collect_dir_recursive(input_path, real_root):
 
 
 def collect_files(input_path, recursive=False):
-    """Collect processable files from a path (file or directory).
+    """Collect processable files from a path (file, directory, or URL).
 
     With ``recursive=False`` (default, used by the CLI) a directory is scanned
     one level deep and subdirectories are skipped — behavior is byte-for-byte
     unchanged. With ``recursive=True`` (used by the GUI folder-drop) a directory
     is walked recursively via :func:`_collect_dir_recursive`.
     """
+    from parsers.x_article import is_x_article_url
+    if isinstance(input_path, str) and is_x_article_url(input_path):
+        return [input_path.strip()]
+
     if os.path.isfile(input_path):
         # Security: resolve symlinks to prevent directory traversal
         real_path = os.path.realpath(input_path)
@@ -694,6 +741,7 @@ def main():
     parser.add_argument("--password", default=None, help="PDF decryption password (overrides .env and config)")
     parser.add_argument("--summary", action="store_true", help="print JSON summary to stdout after processing")
     parser.add_argument("--format", "-f", choices=["md", "epub", "both"], default="md", help="output format (default: md)")
+    parser.add_argument("--epub-zh-hant", action="store_true", help="convert Simplified Chinese to Traditional Chinese in EPUB output")
     parser.add_argument("--dry-run", action="store_true", help="preview without writing files")
     parser.add_argument("--verbose", action="store_true", help="enable debug logging")
     parser.add_argument("--version", action="version", version=f"doc-cleaner {__version__}")
@@ -732,6 +780,10 @@ def main():
             sys.exit(EXIT_NO_INPUT)
         config.setdefault("pdf", {})["password"] = args.password
 
+    # EPUB Simplified to Traditional Chinese conversion
+    if args.epub_zh_hant:
+        config.setdefault("output", {})["epub_zh_hant"] = True
+
     # AI mode priority: CLI --ai > config.json > default "gemini"
     ai_mode = args.ai or config.get("ai", {}).get("backend", "gemini")
 
@@ -756,14 +808,19 @@ def main():
         config_path=config_path,
         dry_run=args.dry_run,
     )
-    results = [
-        {
+    results = []
+    for r in raw_results:
+        out_val = None
+        if r["output"]:
+            try:
+                out_val = os.path.relpath(r["output"])
+            except ValueError:
+                out_val = r["output"]
+        results.append({
             "file": r["file"],
-            "output": os.path.relpath(r["output"]) if r["output"] else None,
+            "output": out_val,
             "status": r["status"],
-        }
-        for r in raw_results
-    ]
+        })
 
     success = sum(1 for r in results if r["status"] in ("ok", "dry_run"))
     logger.info(f"Done: {success}/{len(files)} files processed.")

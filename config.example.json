@@ -25,6 +25,10 @@
     "dpi": 200,
     "max_pages": 15
   },
+  "x_article": {
+    "auth_token": "",
+    "ct0": ""
+  },
   "pii": {
     "enabled": false,
     "patterns": ["national_id", "credit_card", "mobile", "landline", "business_id"]

@@ -1,0 +1,11 @@
+Metadata-Version: 2.1
+Briefcase-Version: 0.4.2
+Name: macapp
+Formal-Name: Doc Cleaner
+App-ID: com.notoriouslab.macapp
+Version: 1.6.0
+Home-page: https://github.com/notoriouslab/doc-cleaner
+Download-URL: https://github.com/notoriouslab/doc-cleaner
+Author: notoriouslab
+Author-email: sitedirector@gmail.com
+Summary: Convert documents to clean Markdown. Zero config, zero API key.

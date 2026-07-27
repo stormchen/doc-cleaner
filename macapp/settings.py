@@ -41,6 +41,9 @@ DEFAULTS = {
     "output_mode": "sibling",
     "custom_output_dir": None,
     "last_input_dir": None,
+    "epub_zh_hant": False,
+    "x_auth_token": None,
+    "x_ct0": None,
 }
 
 # Per-key validators: a stored value is accepted only if it passes, else the
@@ -55,8 +58,10 @@ def _valid(key, value):
         # isinstance guard first: a non-str (e.g. dict/list) value would make
         # `value in <set>` raise TypeError (unhashable). Short-circuit instead.
         return isinstance(value, str) and value in _VALID_OUTPUT_MODES
-    if key in ("custom_output_dir", "last_input_dir"):
+    if key in ("custom_output_dir", "last_input_dir", "x_auth_token", "x_ct0"):
         return value is None or isinstance(value, str)
+    if key == "epub_zh_hant":
+        return isinstance(value, bool)
     return False
 
 

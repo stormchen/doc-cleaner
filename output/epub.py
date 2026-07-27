@@ -452,13 +452,37 @@ def create_epub_archive(title, content_html, summary="", tags=None, source_path=
     return epub_buf.getvalue()
 
 
-def render_ai_epub(data, filename, source_path=None, language="zh-TW"):
+def _convert_text_zh_hant(text, opencc_config="s2twp"):
+    if not text:
+        return text
+    try:
+        from opencc import OpenCC
+        cc = OpenCC(opencc_config)
+        return cc.convert(text)
+    except ImportError:
+        logger.warning(
+            "opencc-python-reimplemented is not installed. Simplified to Traditional Chinese conversion skipped. "
+            "Install with: pip install opencc-python-reimplemented"
+        )
+        return text
+    except Exception as e:
+        logger.error(f"Failed to convert Simplified to Traditional Chinese: {e}")
+        return text
+
+
+def render_ai_epub(data, filename, source_path=None, language="zh-TW", convert_zh_hant=False, opencc_config="s2twp"):
     """Render structured AI JSON response to EPUB byte content."""
     title = data.get("title") or filename
     summary = data.get("summary") or ""
     refined_markdown = data.get("refined_markdown") or ""
     tags = data.get("tags") or []
     
+    if convert_zh_hant:
+        title = _convert_text_zh_hant(title, opencc_config)
+        summary = _convert_text_zh_hant(summary, opencc_config)
+        refined_markdown = _convert_text_zh_hant(refined_markdown, opencc_config)
+        tags = [_convert_text_zh_hant(t, opencc_config) for t in tags]
+        
     content_html = markdown_to_xhtml(refined_markdown)
     return create_epub_archive(
         title=title,
@@ -470,11 +494,18 @@ def render_ai_epub(data, filename, source_path=None, language="zh-TW"):
     )
 
 
-def render_raw_epub(text, filename, source_path=None, language="zh-TW"):
+def render_raw_epub(text, filename, source_path=None, language="zh-TW", convert_zh_hant=False, opencc_config="s2twp"):
     """Render raw extracted text to EPUB byte content."""
+    title = filename
+    if convert_zh_hant:
+        text = _convert_text_zh_hant(text, opencc_config)
+        import os
+        title = os.path.splitext(os.path.basename(filename))[0]
+        title = _convert_text_zh_hant(title, opencc_config)
+        
     content_html = markdown_to_xhtml(text)
     return create_epub_archive(
-        title=filename,
+        title=title,
         content_html=content_html,
         summary="Raw extraction",
         tags=[],

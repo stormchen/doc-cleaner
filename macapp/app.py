@@ -15,6 +15,25 @@ from pathlib import Path
 
 import webview
 
+from pathlib import Path
+_dotenv_path = Path(__file__).resolve().parent.parent / ".env"
+try:
+    from dotenv import load_dotenv
+    load_dotenv(dotenv_path=_dotenv_path, override=True)
+except ImportError:
+    try:
+        if _dotenv_path.exists():
+            with open(_dotenv_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    if "=" in line:
+                        k, v = line.split("=", 1)
+                        os.environ[k.strip()] = v.strip().strip("\"'")
+    except Exception:
+        pass
+
 import cleaner
 import core as _core
 from macapp import mdpreview, settings
@@ -106,6 +125,7 @@ _HTML = """<!DOCTYPE html>
       overflow-y: auto; margin-top: 12px;
     }
     #file-list li {
+      display: flex; align-items: center; justify-content: space-between;
       padding: 4px 0; border-bottom: 1px solid #f2f2f7;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
@@ -205,9 +225,28 @@ _HTML = """<!DOCTYPE html>
       <button class="btn-primary" id="btn-pick" data-i18n="pickFiles">選擇檔案</button>
       <button class="btn-secondary" id="btn-clear" style="display:none" data-i18n="clearFiles">清除選擇</button>
     </div>
+    <div style="margin-top:12px; display:flex; gap:8px;">
+      <input type="text" id="input-url" style="flex:1; padding:8px 12px; border:1px solid #c7c7cc; border-radius:8px; font-size:13px; background:white; color:#1d1d1f;" placeholder="貼上 X (Twitter) 文章網址 (https://x.com/...)">
+      <button type="button" class="btn-secondary" id="btn-add-url" style="padding:8px 16px; font-size:13px; flex-shrink:0;" data-i18n="addUrl">新增網址</button>
+    </div>
     <ul id="file-list"></ul>
     <div id="file-count"></div>
     <div id="notice" style="display:none;margin-top:6px;font-size:12px;color:#b8860b"></div>
+  </div>
+
+  <div class="card">
+    <div style="font-size:14px;font-weight:600;display:flex;justify-content:space-between;align-items:center;">
+      <span>🐦 X (Twitter) 驗證設定</span>
+      <button type="button" id="btn-toggle-x-config" style="background:none;border:none;color:#007aff;font-size:12px;cursor:pointer;">展開/收起</button>
+    </div>
+    <div id="x-config-box" style="display:none;margin-top:8px;">
+      <div style="font-size:12px;color:#636366;margin-bottom:8px;">轉換 X 文章時需填入瀏覽器 Cookies</div>
+      <div style="display:flex;flex-direction:column;gap:6px;font-size:13px;">
+        <label>auth_token: <input type="password" id="input-x-auth-token" style="width:100%;padding:4px 8px;border:1px solid #d1d1d6;border-radius:6px;margin-top:2px;" placeholder="貼上 auth_token"></label>
+        <label>ct0: <input type="password" id="input-x-ct0" style="width:100%;padding:4px 8px;border:1px solid #d1d1d6;border-radius:6px;margin-top:2px;" placeholder="貼上 ct0"></label>
+        <button type="button" id="btn-save-x-config" class="btn-secondary" style="font-size:12px;padding:4px 12px;align-self:flex-start;margin-top:4px;">儲存 X 憑證</button>
+      </div>
+    </div>
   </div>
 
   <div class="card">
@@ -229,6 +268,13 @@ _HTML = """<!DOCTYPE html>
       <label><input type="radio" name="format" value="md" checked> <span data-i18n="formatMd">Markdown (.md)</span></label>
       <label><input type="radio" name="format" value="epub"> <span data-i18n="formatEpub">EPUB 電子書 (.epub)</span></label>
       <label><input type="radio" name="format" value="both"> <span data-i18n="formatBoth">雙格式 (.md + .epub)</span></label>
+    </div>
+  </div>
+
+  <div class="card" id="epub-options-card" style="display:none">
+    <div class="output-mode">
+      <span data-i18n="epubOptionsLabel">EPUB 選項：</span>
+      <label><input type="checkbox" id="chk-epub-zh-hant"> <span data-i18n="epubZhHant">簡轉繁 (繁體書格式)</span></label>
     </div>
   </div>
 
@@ -285,6 +331,8 @@ _HTML = """<!DOCTYPE html>
         dropZoneText: '📂 將文件拖放至此',
         dropZoneHint: '或使用下方按鈕選擇',
         pickFiles:    '選擇檔案',
+        addUrl:       '新增網址',
+        urlPlaceholder:'貼上 X (Twitter) 文章網址 (https://x.com/...)',
         clearFiles:   '清除選擇',
         outputLabel:  '輸出位置：',
         outputSibling:'同資料夾',
@@ -295,6 +343,8 @@ _HTML = """<!DOCTYPE html>
         formatMd:     'Markdown (.md)',
         formatEpub:   'EPUB 電子書 (.epub)',
         formatBoth:   '雙格式 (.md + .epub)',
+        epubOptionsLabel: 'EPUB 選項：',
+        epubZhHant:      '簡轉繁 (繁體書格式)',
         convert:      '轉換',
         revealInFinder:'在 Finder 顯示',
         preview:      '預覽',
@@ -312,6 +362,8 @@ _HTML = """<!DOCTYPE html>
         dropZoneText: '📂 Drop files here',
         dropZoneHint: 'or use the button below',
         pickFiles:    'Choose Files',
+        addUrl:       'Add URL',
+        urlPlaceholder:'Paste X (Twitter) Article URL (https://x.com/...)',
         clearFiles:   'Clear',
         outputLabel:  'Output:',
         outputSibling:'Same folder',
@@ -322,6 +374,8 @@ _HTML = """<!DOCTYPE html>
         formatMd:     'Markdown (.md)',
         formatEpub:   'EPUB E-book (.epub)',
         formatBoth:   'Both (.md + .epub)',
+        epubOptionsLabel: 'EPUB Options:',
+        epubZhHant:      'Convert Simplified to Traditional Chinese',
         convert:      'Convert',
         revealInFinder:'Show in Finder',
         preview:      'Preview',
@@ -350,9 +404,23 @@ _HTML = """<!DOCTYPE html>
       // Toggle button shows the OTHER language
       var toggle = document.getElementById('btn-lang');
       if (toggle) toggle.textContent = (_lang === 'zh' ? 'EN' : 'ZH');
+
+      var urlInput = document.getElementById('input-url');
+      if (urlInput && STRINGS[_lang].urlPlaceholder) {
+        urlInput.placeholder = STRINGS[_lang].urlPlaceholder;
+      }
     }
 
     // ── init — called from Python after page loads ──────────────────────────
+    function toggleEpubOptions(fmt) {
+      var el = document.getElementById('epub-options-card');
+      if (fmt === 'epub' || fmt === 'both') {
+        el.style.display = '';
+      } else {
+        el.style.display = 'none';
+      }
+    }
+
     function init(langCode, isMacos) {
       setLang(langCode);
       if (isMacos) {
@@ -376,6 +444,13 @@ _HTML = """<!DOCTYPE html>
         var fmt = prefs.output_format || 'md';
         var fmtRadio = document.querySelector('input[name=format][value=' + fmt + ']');
         if (fmtRadio) fmtRadio.checked = true;
+
+        var epubZhHant = prefs.epub_zh_hant || false;
+        document.getElementById('chk-epub-zh-hant').checked = epubZhHant;
+        toggleEpubOptions(fmt);
+
+        if (prefs.x_auth_token) document.getElementById('input-x-auth-token').value = prefs.x_auth_token;
+        if (prefs.x_ct0) document.getElementById('input-x-ct0').value = prefs.x_ct0;
       });
     }
 
@@ -420,15 +495,31 @@ _HTML = """<!DOCTYPE html>
       var list  = document.getElementById('file-list');
       var count = document.getElementById('file-count');
       list.innerHTML = '';
-      selectedPaths.forEach(function(p) {
+      selectedPaths.forEach(function(p, idx) {
         var li = document.createElement('li');
         li.title = p;
-        li.textContent = p.split('/').pop();
+        var isUrl = (p.indexOf('http://') === 0 || p.indexOf('https://') === 0 || p.indexOf('x.com/') !== -1 || p.indexOf('twitter.com/') !== -1);
+        var labelText = isUrl ? ('🔗 ' + p) : p.replace(/\\\\/g, '/').split('/').pop();
+        li.innerHTML = '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;">' + escHtml(labelText) + '</span>' +
+                       '<button type="button" data-idx="' + idx + '" class="btn-remove-item" style="background:none;border:none;color:#8e8e93;cursor:pointer;font-size:12px;padding:0 4px;">✕</button>';
         list.appendChild(li);
       });
+
+      // Bind remove buttons
+      document.querySelectorAll('.btn-remove-item').forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          var i = parseInt(this.getAttribute('data-idx'), 10);
+          if (!isNaN(i)) {
+            selectedPaths.splice(i, 1);
+            renderFiles();
+          }
+        });
+      });
+
       var n = selectedPaths.length;
       count.textContent = n > 0
-        ? (_lang === 'zh' ? '已選 ' + n + ' 個檔案' : n + ' file(s) selected')
+        ? (_lang === 'zh' ? '已選 ' + n + ' 個項目' : n + ' item(s) selected')
         : '';
       document.getElementById('btn-clear').style.display = n > 0 ? '' : 'none';
       document.getElementById('btn-convert').disabled = n === 0;
@@ -445,6 +536,51 @@ _HTML = """<!DOCTYPE html>
       });
     });
 
+    function addUrlFromInput() {
+      var input = document.getElementById('input-url');
+      var rawUrl = input ? input.value.trim() : '';
+      if (!rawUrl) {
+        alert(_lang === 'zh' ? '請先貼上網址！' : 'Please paste a URL first!');
+        return;
+      }
+
+      var url = rawUrl;
+      if (!/^https?:\\/\\//i.test(url)) {
+        url = 'https://' + url;
+      }
+
+      if (selectedPaths.indexOf(url) === -1) {
+        selectedPaths.push(url);
+      }
+      input.value = '';
+      renderFiles();
+    }
+
+    document.getElementById('btn-add-url').addEventListener('click', function(e) {
+      e.preventDefault();
+      addUrlFromInput();
+    });
+
+    document.getElementById('input-url').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        addUrlFromInput();
+      }
+    });
+
+    document.getElementById('btn-toggle-x-config').addEventListener('click', function() {
+      var box = document.getElementById('x-config-box');
+      box.style.display = (box.style.display === 'none') ? 'block' : 'none';
+    });
+
+    document.getElementById('btn-save-x-config').addEventListener('click', function() {
+      var auth = document.getElementById('input-x-auth-token').value.trim();
+      var ct = document.getElementById('input-x-ct0').value.trim();
+      pywebview.api.set_x_credentials(auth, ct).then(function() {
+        alert(_lang === 'zh' ? 'X (Twitter) 憑證已儲存！' : 'X credentials saved!');
+      });
+    });
+
     document.getElementById('btn-clear').addEventListener('click', function() {
       selectedPaths = [];
       renderFiles();
@@ -453,6 +589,9 @@ _HTML = """<!DOCTYPE html>
     });
 
     // ── drag-and-drop ──────────────────────────────────────────────────────
+    window.addEventListener('dragover', function(e) { e.preventDefault(); }, false);
+    window.addEventListener('drop',     function(e) { e.preventDefault(); }, false);
+
     var dz = document.getElementById('drop-zone');
     dz.addEventListener('dragover',  function(e) { e.preventDefault(); dz.classList.add('hover'); });
     dz.addEventListener('dragleave', function()  { dz.classList.remove('hover'); });
@@ -460,14 +599,23 @@ _HTML = """<!DOCTYPE html>
       e.preventDefault();
       dz.classList.remove('hover');
       document.getElementById('file-count').textContent = _lang === 'zh' ? '讀取中…' : 'Loading…';
-      pywebview.api.get_dropped_paths().then(function(paths) {
-        if (paths && paths.length) {
-          onDropPaths(paths);
-        } else {
-          document.getElementById('file-count').textContent = '';
-          renderFiles();
-        }
-      });
+
+      if (window.pywebview && window.pywebview._jsApiCallback && e && e.dataTransfer) {
+        try {
+          window.pywebview._jsApiCallback('dummy', { event: e }, '1');
+        } catch (err) {}
+      }
+
+      setTimeout(function() {
+        pywebview.api.get_dropped_paths().then(function(paths) {
+          if (paths && paths.length) {
+            onDropPaths(paths);
+          } else {
+            document.getElementById('file-count').textContent = '';
+            renderFiles();
+          }
+        });
+      }, 50);
     });
 
     // ── output mode change (D2: persist + custom folder picker) ─────────────
@@ -487,7 +635,12 @@ _HTML = """<!DOCTYPE html>
     document.querySelectorAll('input[name=format]').forEach(function(r) {
       r.addEventListener('change', function() {
         pywebview.api.set_output_format(this.value);
+        toggleEpubOptions(this.value);
       });
+    });
+
+    document.getElementById('chk-epub-zh-hant').addEventListener('change', function() {
+      pywebview.api.set_epub_zh_hant(this.checked);
     });
 
     // "變更…" — re-open the folder picker to change an already-chosen folder.
@@ -637,7 +790,16 @@ class Api:
             "custom_output_dir": self._settings.get("custom_output_dir"),
             "last_input_dir": self._settings.get("last_input_dir"),
             "output_format": self._settings.get("output_format", "md"),
+            "epub_zh_hant": self._settings.get("epub_zh_hant", False),
+            "x_auth_token": self._settings.get("x_auth_token"),
+            "x_ct0": self._settings.get("x_ct0"),
         }
+
+    def set_x_credentials(self, auth_token, ct0):
+        """Persist X credentials (auth_token & ct0)."""
+        self._settings["x_auth_token"] = auth_token
+        self._settings["x_ct0"] = ct0
+        settings.save(self._settings)
 
     def set_output_mode(self, mode):
         """Persist the chosen output mode (sibling/desktop/custom)."""
@@ -647,6 +809,11 @@ class Api:
     def set_output_format(self, format_val):
         """Persist the chosen output format (md/epub/both)."""
         self._settings["output_format"] = format_val
+        settings.save(self._settings)
+
+    def set_epub_zh_hant(self, val):
+        """Persist the chosen epub_zh_hant preference (bool)."""
+        self._settings["epub_zh_hant"] = bool(val)
         settings.save(self._settings)
 
     def pick_output_folder(self):
@@ -732,6 +899,13 @@ class Api:
         """
         total = len(paths)
         config, ai_backend, prompt = _core._build_env(ai="none")
+        # Inject the GUI setting into config
+        config.setdefault("output", {})["epub_zh_hant"] = self._settings.get("epub_zh_hant", False)
+        if self._settings.get("x_auth_token"):
+            config.setdefault("x_article", {})["auth_token"] = self._settings["x_auth_token"]
+        if self._settings.get("x_ct0"):
+            config.setdefault("x_article", {})["ct0"] = self._settings["x_ct0"]
+
         desktop = str(Path.home() / "Desktop")
 
         # D2: custom output dir; if it's gone, fall back to sibling + notify once.
@@ -745,12 +919,19 @@ class Api:
                 return desktop
             if output_mode == "custom" and custom_dir:  # custom_dir validated above
                 return custom_dir
+            if path.startswith("http://") or path.startswith("https://"):
+                return desktop
             return str(Path(path).parent)  # sibling, and defensive fallback
 
         for i, path in enumerate(paths):
-            path = str(Path(path).resolve())
+            from parsers.x_article import is_x_article_url
+            if is_x_article_url(path):
+                target_path = path
+            else:
+                target_path = str(Path(path).resolve())
+
             self._window.evaluate_js(f"onProgress({i + 1}, {total})")
-            result = _core._run_one(path, ai_backend, prompt, config, _resolver(path), output_format=output_format)
+            result = _core._run_one(target_path, ai_backend, prompt, config, _resolver(target_path), output_format=output_format)
             self._window.evaluate_js(
                 f"onResult({json.dumps(result, ensure_ascii=False)})"
             )

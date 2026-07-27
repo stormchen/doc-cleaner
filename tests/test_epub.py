@@ -124,6 +124,23 @@ class TestEPUBGeneration(unittest.TestCase):
         epub_bytes = render_raw_epub(text, filename="raw.txt")
         self.assertIsInstance(epub_bytes, bytes)
 
+    def test_epub_zh_hant_conversion(self):
+        simplified_data = {
+            "title": "测试简体中文书名",
+            "summary": "测试簡體中文摘要，包含軟件和信息",
+            "refined_markdown": "# 測試段落\n簡體中文測試內容：硬盤與內存。",
+            "tags": ["測試", "軟體"]
+        }
+        epub_bytes = render_ai_epub(simplified_data, filename="original.pdf", convert_zh_hant=True)
+        self.assertIsInstance(epub_bytes, bytes)
+        
+        zip_buf = io.BytesIO(epub_bytes)
+        with zipfile.ZipFile(zip_buf, "r") as zf:
+            content_xhtml = zf.read("OEBPS/text/content.xhtml").decode("utf-8")
+            self.assertIn("測試簡體中文書名", content_xhtml)
+            self.assertIn("包含軟體和資訊", content_xhtml)
+            self.assertIn("硬碟與記憶體", content_xhtml)
+
 
 if __name__ == "__main__":
     unittest.main()
