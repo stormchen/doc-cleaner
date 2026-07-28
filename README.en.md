@@ -191,6 +191,40 @@ Other safeguards:
 - **OOM protection** — PDF vision defaults to 15 pages max
 - **JSON fallback** — if AI returns invalid JSON, degrades to raw text
 
+## Desktop App Build & Package (Developers)
+
+This project uses **BeeWare Briefcase** for building and packaging cross-platform desktop applications.
+
+### Setup
+1. Ensure Python 3.9+ is installed.
+2. Create and activate a Python virtual environment:
+   ```bash
+   python -m venv venv
+   # Activate (Windows PowerShell)
+   .\venv\Scripts\Activate.ps1
+   # Activate (macOS/Linux)
+   source venv/bin/activate
+   ```
+3. Upgrade pip and install Briefcase and project dependencies:
+   ```bash
+   pip install --upgrade pip
+   pip install briefcase
+   pip install -r requirements.txt
+   ```
+
+### Cross-Platform Build Commands
+
+With the virtual environment active, run the following Briefcase commands in the project root:
+
+| Step | Command | Description |
+|------|---------|-------------|
+| **1. Create scaffolding** | `briefcase create` | Download Python embedded package for the target platform and set up project template |
+| **2. Build app** | `briefcase build` | Compile the application (produces `Doc Cleaner.exe` on Windows) |
+| **3. Run dev test** | `briefcase run` | Run the built app directly in development mode |
+| **4. Package installer** | `briefcase package` | Package the app into a platform installer. Automatically downloads WiX and produces an `.msi` package on Windows |
+
+The packaged installers will be generated under the `dist/` directory.
+
 ---
 
 ## Advanced Reference

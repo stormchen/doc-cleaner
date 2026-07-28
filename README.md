@@ -191,6 +191,40 @@ python cleaner.py --input scanned.pdf --ai gemini
 - **OOM 防護** — PDF 視覺模式預設最多 15 頁（可調整）
 - **JSON 降級** — AI 回傳失效時自動降級為 raw text
 
+## 桌面 App 建置與打包 (開發者)
+
+本專案使用 **BeeWare Briefcase** 進行跨平台桌面應用程式的建置與打包。
+
+### 建置前置準備
+1. 確保已安裝 Python 3.9+。
+2. 建立並啟用 Python 虛擬環境：
+   ```bash
+   python -m venv venv
+   # 啟用虛擬環境 (Windows PowerShell)
+   .\venv\Scripts\Activate.ps1
+   # 啟用虛擬環境 (macOS/Linux)
+   source venv/bin/activate
+   ```
+3. 升級 pip 並安裝 Briefcase 與專案依賴套件：
+   ```bash
+   pip install --upgrade pip
+   pip install briefcase
+   pip install -r requirements.txt
+   ```
+
+### 跨平台建置指令
+
+在啟用虛擬環境的狀態下，於專案根目錄執行以下 Briefcase 指令：
+
+| 步驟 | 指令 | 說明 |
+|------|------|------|
+| **1. 建立結構** | `briefcase create` | 下載適用於當前平台的 Python 嵌入式運行環境，並建立專案結構 |
+| **2. 編譯應用程式** | `briefcase build` | 編譯應用程式 (在 Windows 會建置出 `Doc Cleaner.exe`) |
+| **3. 執行測試** | `briefcase run` | 在開發測試模式下直接運行建置好的 App 視窗 |
+| **4. 打包安裝檔** | `briefcase package` | 封裝成平台的安裝檔。在 Windows 會自動安裝 WiX 並產生 `.msi` 安裝包 |
+
+建置完成後的安裝套件將會生成於 `dist/` 目錄中。
+
 ---
 
 ## 進階參考
