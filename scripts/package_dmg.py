@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Build the final DMG with both the .app and the ReadMe.txt visible.
-Run after `briefcase build macOS --adhoc-sign`.
+Run after `briefcase build macOS`.
 """
 import sys
 import tomllib
@@ -18,7 +18,7 @@ with open(ROOT / "pyproject.toml", "rb") as _f:
 OUT = ROOT / f"dist/Doc Cleaner-{_VERSION}.dmg"
 
 if not APP.exists():
-    sys.exit(f"ERROR: .app not found at {APP}\nRun: briefcase build macOS --adhoc-sign")
+    sys.exit(f"ERROR: .app not found at {APP}\nRun: briefcase build macOS")
 
 if not README.exists():
     sys.exit(f"ERROR: ReadMe.txt not found at {README}")
