@@ -38,11 +38,8 @@ numbers-parser>=4.18.0
 # Apple Keynote extraction (optional: pip install keynote-parser)
 keynote-parser>=1.14.4.0
 
-# macOS GUI (optional: pip install pywebview — macOS app only)
-# pywebview>=5.0.0
-
-# EPUB support (optional: pip install markdown)
-# markdown>=3.4.0
+# EPUB Simplified to Traditional Chinese conversion
+opencc-python-reimplemented>=0.1.7
 
 # Testing (optional: pip install pytest)
 # pytest>=7.0.0
