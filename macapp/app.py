@@ -271,17 +271,11 @@ _HTML = """<!DOCTYPE html>
     </div>
   </div>
 
-  <div class="card" id="epub-options-card" style="display:none">
-    <div class="output-mode">
-      <span data-i18n="epubOptionsLabel">EPUB 選項：</span>
-      <label><input type="checkbox" id="chk-epub-zh-hant"> <span data-i18n="epubZhHant">簡轉繁 (繁體書格式)</span></label>
-    </div>
-  </div>
-
   <div class="card">
-    <div class="output-mode">
-      <span data-i18n="transOptionsLabel">翻譯選項：</span>
+    <div class="output-mode" style="flex-wrap:wrap; gap:12px 20px;">
+      <span data-i18n="langOptionsLabel">語言與翻譯：</span>
       <label><input type="checkbox" id="chk-translate-zh-hant"> <span data-i18n="translateZhHant">英轉繁 (英文翻譯繁中)</span></label>
+      <label><input type="checkbox" id="chk-epub-zh-hant"> <span data-i18n="epubZhHant">簡轉繁 (繁體字格式)</span></label>
     </div>
   </div>
 
@@ -350,10 +344,9 @@ _HTML = """<!DOCTYPE html>
         formatMd:     'Markdown (.md)',
         formatEpub:   'EPUB 電子書 (.epub)',
         formatBoth:   '雙格式 (.md + .epub)',
-        epubOptionsLabel: 'EPUB 選項：',
-        epubZhHant:      '簡轉繁 (繁體書格式)',
-        transOptionsLabel: '翻譯選項：',
-        translateZhHant:   '英轉繁 (英文翻譯繁中)',
+        langOptionsLabel: '語言與翻譯：',
+        translateZhHant:  '英轉繁 (英文翻譯繁中)',
+        epubZhHant:       '簡轉繁 (繁體字格式)',
         convert:      '轉換',
         revealInFinder:'在 Finder 顯示',
         preview:      '預覽',
@@ -383,10 +376,9 @@ _HTML = """<!DOCTYPE html>
         formatMd:     'Markdown (.md)',
         formatEpub:   'EPUB E-book (.epub)',
         formatBoth:   'Both (.md + .epub)',
-        epubOptionsLabel: 'EPUB Options:',
-        epubZhHant:      'Convert Simplified to Traditional Chinese',
-        transOptionsLabel: 'Translation:',
-        translateZhHant:   'English to Traditional Chinese',
+        langOptionsLabel: 'Language & Translation:',
+        translateZhHant:  'English to Traditional Chinese',
+        epubZhHant:       'Convert Simplified to Traditional Chinese',
         convert:      'Convert',
         revealInFinder:'Show in Finder',
         preview:      'Preview',
@@ -424,12 +416,7 @@ _HTML = """<!DOCTYPE html>
 
     // ── init — called from Python after page loads ──────────────────────────
     function toggleEpubOptions(fmt) {
-      var el = document.getElementById('epub-options-card');
-      if (fmt === 'epub' || fmt === 'both') {
-        el.style.display = '';
-      } else {
-        el.style.display = 'none';
-      }
+      // Reserved for format-specific options
     }
 
     function init(langCode, isMacos) {

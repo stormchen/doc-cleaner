@@ -578,7 +578,7 @@ def process_file(filepath, ai_backend, prompt, config, output_dir, output_format
         if output_format in ("epub", "both"):
             from output.epub import render_ai_epub, render_raw_epub
             epub_lang = config.get("output", {}).get("epub_language", "zh-TW")
-            epub_zh_hant = config.get("output", {}).get("epub_zh_hant", False)
+            epub_zh_hant = config.get("output", {}).get("epub_zh_hant", False) or config.get("output", {}).get("translate_zh_hant", False)
             epub_opencc_config = config.get("output", {}).get("epub_opencc_config", "s2twp")
             if data is not None:
                 content_epub = render_ai_epub(
