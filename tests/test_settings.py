@@ -23,6 +23,7 @@ def test_defaults_shape():
         "custom_output_dir": None,
         "last_input_dir": None,
         "epub_zh_hant": False,
+        "translate_zh_hant": False,
         "x_auth_token": None,
         "x_ct0": None,
     }

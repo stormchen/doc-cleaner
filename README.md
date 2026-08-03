@@ -241,6 +241,8 @@ python cleaner.py [選項]
   --password        PDF 解密密碼（優先於 .env 和 config）
   --summary         輸出 JSON 摘要到 stdout（供腳本/Agent 解析）
   --format, -f      輸出格式：md (預設) | epub | both (同時產出 Markdown 與 EPUB)
+  --epub-zh-hant    將簡體中文轉換為繁體中文
+  --translate-zh-hant 將英文內容翻譯成繁體中文 (台灣習慣用語)
   --dry-run         預覽不寫入
   --verbose         除錯日誌
   --version         版本資訊

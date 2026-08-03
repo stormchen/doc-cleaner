@@ -241,6 +241,8 @@ python cleaner.py [options]
   --password        PDF decryption password (overrides .env and config)
   --summary         Output JSON summary to stdout (for scripts/agents)
   --format, -f      Output format: md (default) | epub | both (both Markdown and EPUB)
+  --epub-zh-hant    Convert Simplified Chinese to Traditional Chinese
+  --translate-zh-hant Translate English content to Traditional Chinese
   --dry-run         Preview without writing
   --verbose         Debug logging
   --version         Version info

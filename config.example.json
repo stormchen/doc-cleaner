@@ -34,7 +34,9 @@
     "patterns": ["national_id", "credit_card", "mobile", "landline", "business_id"]
   },
   "output": {
-    "frontmatter": true
+    "frontmatter": true,
+    "epub_zh_hant": false,
+    "translate_zh_hant": false
   },
   "strip_urls": true,
   "ad_truncation_patterns": [

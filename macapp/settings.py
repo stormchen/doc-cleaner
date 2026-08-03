@@ -42,6 +42,7 @@ DEFAULTS = {
     "custom_output_dir": None,
     "last_input_dir": None,
     "epub_zh_hant": False,
+    "translate_zh_hant": False,
     "x_auth_token": None,
     "x_ct0": None,
 }
@@ -60,7 +61,7 @@ def _valid(key, value):
         return isinstance(value, str) and value in _VALID_OUTPUT_MODES
     if key in ("custom_output_dir", "last_input_dir", "x_auth_token", "x_ct0"):
         return value is None or isinstance(value, str)
-    if key == "epub_zh_hant":
+    if key in ("epub_zh_hant", "translate_zh_hant"):
         return isinstance(value, bool)
     return False
 

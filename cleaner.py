@@ -57,6 +57,11 @@ def load_config(config_path):
 def load_prompt(config, config_path=None):
     """Load the AI prompt template from config or default."""
     prompt_path = config.get("ai", {}).get("prompt_template")
+    translate_zh_hant = config.get("output", {}).get("translate_zh_hant", False)
+
+    if not prompt_path and translate_zh_hant:
+        prompt_path = os.path.join("prompts", "translate_zh_hant.txt")
+
     if prompt_path and not os.path.isabs(prompt_path):
         # Try relative to config dir first, then script dir
         candidates = []
@@ -81,7 +86,11 @@ def load_prompt(config, config_path=None):
         logger.warning(f"Prompt template not found: {prompt_path}, using default")
 
     # Default prompt
-    default_path = os.path.join(SCRIPT_DIR, "prompts", "default.txt")
+    if translate_zh_hant:
+        default_path = os.path.join(SCRIPT_DIR, "prompts", "translate_zh_hant.txt")
+    else:
+        default_path = os.path.join(SCRIPT_DIR, "prompts", "default.txt")
+
     if os.path.exists(default_path):
         with open(default_path, "r", encoding="utf-8") as f:
             return f.read()
@@ -512,9 +521,11 @@ def process_file(filepath, ai_backend, prompt, config, output_dir, output_format
                 if "summary" in data and isinstance(data["summary"], str):
                     data["summary"], _ = redact_pii(data["summary"], enabled_patterns=pii_patterns)
 
-        # 0. Simplified to Traditional Chinese conversion if enabled
+        # 0. Simplified to Traditional Chinese conversion or translation post-processing if enabled
         epub_zh_hant = config.get("output", {}).get("epub_zh_hant", False)
-        if epub_zh_hant:
+        translate_zh_hant = config.get("output", {}).get("translate_zh_hant", False)
+
+        if epub_zh_hant or (translate_zh_hant and data is None):
             epub_opencc_config = config.get("output", {}).get("epub_opencc_config", "s2twp")
             try:
                 from opencc import OpenCC
@@ -529,14 +540,16 @@ def process_file(filepath, ai_backend, prompt, config, output_dir, output_format
                     if "tags" in data and isinstance(data["tags"], list):
                         data["tags"] = [cc.convert(t) if isinstance(t, str) else t for t in data["tags"]]
                 else:
-                    text = cc.convert(text)
+                    if text:
+                        text = cc.convert(text)
             except ImportError:
-                logger.warning(
-                    "opencc-python-reimplemented is not installed. Simplified to Traditional Chinese conversion skipped. "
-                    "Install with: pip install opencc-python-reimplemented"
-                )
+                if epub_zh_hant:
+                    logger.warning(
+                        "opencc-python-reimplemented is not installed. Simplified to Traditional Chinese conversion skipped. "
+                        "Install with: pip install opencc-python-reimplemented"
+                    )
             except Exception as e:
-                logger.error(f"Failed to convert Simplified to Traditional Chinese: {e}")
+                logger.error(f"Failed to convert Chinese text to Traditional Chinese: {e}")
 
         # 1. Render Markdown if needed
         content_md = None
@@ -742,6 +755,7 @@ def main():
     parser.add_argument("--summary", action="store_true", help="print JSON summary to stdout after processing")
     parser.add_argument("--format", "-f", choices=["md", "epub", "both"], default="md", help="output format (default: md)")
     parser.add_argument("--epub-zh-hant", action="store_true", help="convert Simplified Chinese to Traditional Chinese in EPUB output")
+    parser.add_argument("--translate-zh-hant", action="store_true", help="translate English content to Traditional Chinese")
     parser.add_argument("--dry-run", action="store_true", help="preview without writing files")
     parser.add_argument("--verbose", action="store_true", help="enable debug logging")
     parser.add_argument("--version", action="version", version=f"doc-cleaner {__version__}")
@@ -783,6 +797,10 @@ def main():
     # EPUB Simplified to Traditional Chinese conversion
     if args.epub_zh_hant:
         config.setdefault("output", {})["epub_zh_hant"] = True
+
+    # English to Traditional Chinese translation
+    if args.translate_zh_hant:
+        config.setdefault("output", {})["translate_zh_hant"] = True
 
     # AI mode priority: CLI --ai > config.json > default "gemini"
     ai_mode = args.ai or config.get("ai", {}).get("backend", "gemini")

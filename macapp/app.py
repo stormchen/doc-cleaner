@@ -279,6 +279,13 @@ _HTML = """<!DOCTYPE html>
   </div>
 
   <div class="card">
+    <div class="output-mode">
+      <span data-i18n="transOptionsLabel">翻譯選項：</span>
+      <label><input type="checkbox" id="chk-translate-zh-hant"> <span data-i18n="translateZhHant">英轉繁 (英文翻譯繁中)</span></label>
+    </div>
+  </div>
+
+  <div class="card">
     <div id="progress-label"></div>
     <ul id="results"></ul>
   </div>
@@ -345,6 +352,8 @@ _HTML = """<!DOCTYPE html>
         formatBoth:   '雙格式 (.md + .epub)',
         epubOptionsLabel: 'EPUB 選項：',
         epubZhHant:      '簡轉繁 (繁體書格式)',
+        transOptionsLabel: '翻譯選項：',
+        translateZhHant:   '英轉繁 (英文翻譯繁中)',
         convert:      '轉換',
         revealInFinder:'在 Finder 顯示',
         preview:      '預覽',
@@ -376,6 +385,8 @@ _HTML = """<!DOCTYPE html>
         formatBoth:   'Both (.md + .epub)',
         epubOptionsLabel: 'EPUB Options:',
         epubZhHant:      'Convert Simplified to Traditional Chinese',
+        transOptionsLabel: 'Translation:',
+        translateZhHant:   'English to Traditional Chinese',
         convert:      'Convert',
         revealInFinder:'Show in Finder',
         preview:      'Preview',
@@ -447,6 +458,8 @@ _HTML = """<!DOCTYPE html>
 
         var epubZhHant = prefs.epub_zh_hant || false;
         document.getElementById('chk-epub-zh-hant').checked = epubZhHant;
+        var translateZhHant = prefs.translate_zh_hant || false;
+        document.getElementById('chk-translate-zh-hant').checked = translateZhHant;
         toggleEpubOptions(fmt);
 
         if (prefs.x_auth_token) document.getElementById('input-x-auth-token').value = prefs.x_auth_token;
@@ -643,6 +656,10 @@ _HTML = """<!DOCTYPE html>
       pywebview.api.set_epub_zh_hant(this.checked);
     });
 
+    document.getElementById('chk-translate-zh-hant').addEventListener('change', function() {
+      pywebview.api.set_translate_zh_hant(this.checked);
+    });
+
     // "變更…" — re-open the folder picker to change an already-chosen folder.
     document.getElementById('btn-change-folder').addEventListener('click', function() {
       chooseOutputFolder();
@@ -791,6 +808,7 @@ class Api:
             "last_input_dir": self._settings.get("last_input_dir"),
             "output_format": self._settings.get("output_format", "md"),
             "epub_zh_hant": self._settings.get("epub_zh_hant", False),
+            "translate_zh_hant": self._settings.get("translate_zh_hant", False),
             "x_auth_token": self._settings.get("x_auth_token"),
             "x_ct0": self._settings.get("x_ct0"),
         }
@@ -814,6 +832,11 @@ class Api:
     def set_epub_zh_hant(self, val):
         """Persist the chosen epub_zh_hant preference (bool)."""
         self._settings["epub_zh_hant"] = bool(val)
+        settings.save(self._settings)
+
+    def set_translate_zh_hant(self, val):
+        """Persist the chosen translate_zh_hant preference (bool)."""
+        self._settings["translate_zh_hant"] = bool(val)
         settings.save(self._settings)
 
     def pick_output_folder(self):
@@ -901,6 +924,7 @@ class Api:
         config, ai_backend, prompt = _core._build_env(ai="none")
         # Inject the GUI setting into config
         config.setdefault("output", {})["epub_zh_hant"] = self._settings.get("epub_zh_hant", False)
+        config.setdefault("output", {})["translate_zh_hant"] = self._settings.get("translate_zh_hant", False)
         if self._settings.get("x_auth_token"):
             config.setdefault("x_article", {})["auth_token"] = self._settings["x_auth_token"]
         if self._settings.get("x_ct0"):
