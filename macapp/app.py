@@ -288,10 +288,11 @@ _HTML = """<!DOCTYPE html>
   </div>
 
   <div class="card">
-    <div class="output-mode" style="flex-wrap:wrap; gap:12px 20px;">
+    <div class="output-mode" style="flex-wrap:wrap; gap:12px 20px; align-items: center;">
       <span data-i18n="langOptionsLabel">語言與翻譯：</span>
       <label><input type="checkbox" id="chk-translate-zh-hant"> <span data-i18n="translateZhHant">英轉繁 (英文翻譯繁中)</span></label>
       <label><input type="checkbox" id="chk-epub-zh-hant"> <span data-i18n="epubZhHant">簡轉繁 (繁體字格式)</span></label>
+      <span id="api-key-status" style="font-size:11.5px;font-weight:500;margin-left:5px;"></span>
     </div>
   </div>
 
@@ -466,7 +467,18 @@ _HTML = """<!DOCTYPE html>
         toggleEpubOptions(fmt);
 
         if (prefs.x_auth_token) document.getElementById('input-x-auth-token').value = prefs.x_auth_token;
-        if (prefs.x_ct0) document.getElementById('input-x-ct0').value = prefs.x_ct0;
+      });
+      pywebview.api.check_gemini_key().then(function(hasKey) {
+        var statusSpan = document.getElementById('api-key-status');
+        if (statusSpan) {
+          if (hasKey) {
+            statusSpan.textContent = _lang === 'zh' ? ' (已偵測到 Gemini API 金鑰)' : ' (Gemini API Key detected)';
+            statusSpan.style.color = '#34c759';
+          } else {
+            statusSpan.textContent = _lang === 'zh' ? ' (未設定 Gemini API 金鑰，使用本地翻譯)' : ' (No Gemini API Key, using local translation)';
+            statusSpan.style.color = '#ff9500';
+          }
+        }
       });
     }
 
@@ -808,6 +820,28 @@ class Api:
     def dummy(self, *args, **kwargs):
         """No-op stub for pywebview event callbacks."""
         pass
+
+    def check_gemini_key(self):
+        """Return True if GEMINI_API_KEY is configured in environment or config.json."""
+        config_path = str(_core.SCRIPT_DIR / "config.json")
+        exe_dir = Path(sys.executable).parent
+        cwd_dir = Path.cwd()
+        script_dir = Path(_core.SCRIPT_DIR)
+        candidates = [
+            cwd_dir / "config.json",
+            exe_dir / "config.json",
+            script_dir / "config.json",
+            script_dir.parent / "config.json",
+        ]
+        config_path = str(script_dir / "config.json")
+        for p in candidates:
+            if p.exists():
+                config_path = str(p)
+                break
+        
+        config_temp = _core.load_config(config_path)
+        has_key = bool(os.getenv("GEMINI_API_KEY")) or bool(config_temp.get("ai", {}).get("gemini", {}).get("api_key"))
+        return has_key
 
     def get_app_info(self):
         """Return app metadata dict for the About overlay (D3)."""
