@@ -140,15 +140,6 @@ def create_ai_backend(ai_mode, config):
     ai_config = config.get("ai", {})
 
     if ai_mode == "gemini":
-        try:
-            from ai.gemini import GeminiBackend
-        except ImportError:
-            logger.error(
-                "Gemini backend requires google-genai. "
-                "Install with: pip install google-genai python-dotenv"
-            )
-            sys.exit(EXIT_NO_INPUT)
-
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
             logger.error(
@@ -158,7 +149,15 @@ def create_ai_backend(ai_mode, config):
             )
             sys.exit(EXIT_NO_INPUT)
         model = ai_config.get("gemini", {}).get("model", "gemini-2.5-pro")
-        return GeminiBackend(api_key=api_key, model=model)
+        try:
+            from ai.gemini import GeminiBackend
+            return GeminiBackend(api_key=api_key, model=model)
+        except ImportError as e:
+            logger.warning(f"Gemini backend unavailable ({e}). Falling back to Raw mode...")
+            return None
+        except Exception as e:
+            logger.error(f"Failed to initialize Gemini backend ({e}). Falling back to Raw mode...")
+            return None
 
     if ai_mode == "groq":
         from ai.groq import GroqBackend

@@ -600,7 +600,11 @@ _HTML = """<!DOCTYPE html>
       dz.classList.remove('hover');
       document.getElementById('file-count').textContent = _lang === 'zh' ? '讀取中…' : 'Loading…';
 
-      // Drag-and-drop trigger
+      if (window.pywebview && window.pywebview._jsApiCallback && e && e.dataTransfer) {
+        try {
+          window.pywebview._jsApiCallback('dummy', { event: e }, '1');
+        } catch (err) {}
+      }
 
       setTimeout(function() {
         pywebview.api.get_dropped_paths().then(function(paths) {
