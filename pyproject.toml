@@ -62,7 +62,9 @@ requires = [
     "keynote-parser>=1.14.4.0",
     # EPUB Simplified to Traditional Chinese conversion
     "opencc-python-reimplemented>=0.1.7",
-    # Excluded per design D1: pdf2image, pikepdf, poppler, google-genai, ollama
+    # Gemini AI backend & environment support
+    "google-genai>=1.0.0",
+    "python-dotenv>=1.0.0",
 ]
 
 [tool.briefcase.app.macapp.macOS]

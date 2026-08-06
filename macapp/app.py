@@ -919,13 +919,35 @@ class Api:
         Resolves symlinks before processing (mirrors CLI's security policy).
         """
         total = len(paths)
-        config, ai_backend, prompt = _core._build_env(ai="none")
+        config_path = str(_core.SCRIPT_DIR / "config.json")
+        config_temp = _core.load_config(config_path)
+        ai_backend_name = config_temp.get("ai", {}).get("backend", "none")
+        
+        has_key = False
+        if ai_backend_name == "gemini" and (os.getenv("GEMINI_API_KEY") or config_temp.get("ai", {}).get("gemini", {}).get("api_key")):
+            has_key = True
+        elif ai_backend_name == "openai" and (os.getenv("OPENAI_API_KEY") or config_temp.get("ai", {}).get("openai", {}).get("api_key")):
+            has_key = True
+        elif ai_backend_name == "groq" and (os.getenv("GROQ_API_KEY") or config_temp.get("ai", {}).get("groq", {}).get("api_key")):
+            has_key = True
+        elif ai_backend_name == "nvidia" and (os.getenv("NVIDIA_API_KEY") or config_temp.get("ai", {}).get("nvidia", {}).get("api_key")):
+            has_key = True
+        elif ai_backend_name == "ollama":
+            has_key = True
+
+        if not has_key:
+            ai_backend_name = "none"
+
+        config, ai_backend, prompt = _core._build_env(ai=ai_backend_name)
         config.setdefault("output", {})["epub_zh_hant"] = self._settings.get("epub_zh_hant", False)
         config.setdefault("output", {})["translate_zh_hant"] = self._settings.get("translate_zh_hant", False)
         if self._settings.get("x_auth_token"):
             config.setdefault("x_article", {})["auth_token"] = self._settings["x_auth_token"]
         if self._settings.get("x_ct0"):
             config.setdefault("x_article", {})["ct0"] = self._settings["x_ct0"]
+
+        if ai_backend:
+            prompt = _core.load_prompt(config)
 
         desktop = str(Path.home() / "Desktop")
 

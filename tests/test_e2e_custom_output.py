@@ -85,7 +85,12 @@ def test_recursive_drop_then_convert(tmp_path):
 
 
 def test_ai_stays_off(tmp_path, monkeypatch):
-    """Phase A invariant: the GUI batch builds the env with ai='none'."""
+    """Phase A invariant: the GUI batch builds the env with ai='none' when no API key is present."""
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
+    
     import macapp.app as appmod
     captured = {}
     real_build = appmod._core._build_env
