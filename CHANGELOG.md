@@ -1,5 +1,21 @@
 # Changelog
 
+## v1.7.0
+
+### New Features
+
+- **English to Traditional Chinese Translation (英轉繁)**: Direct translation option in GUI and `--translate-zh-hant` CLI argument. Uses high-quality AI mode (Google Gemini) or free fallback raw translation engine.
+- **X (Twitter) Articles Export**: Integrated full-text extraction of X (Twitter) articles and long threads in both CLI and GUI with automated token loader.
+- **Poppler-free Vision OCR Fallback**: Native page-to-image rendering using PyMuPDF (fitz) pixmaps, allowing vision-based scanned PDF processing without requiring external `poppler` or `pdf2image` installations.
+- **Dynamic Configuration & Env Resolution**: Automatically searches for `config.json` and `.env` in the current working directory and the directory containing the executable, allowing easy secret management for packaged apps.
+- **API Key Status Diagnostics Indicator**: In-app live detector showing whether the Gemini API key was loaded successfully or if the app fell back to local translation.
+
+### Improvements & Bug Fixes
+
+- **Gemini Model Upgrade**: Default model updated to `gemini-2.5-flash` following the deprecation of `gemini-2.5-pro`.
+- **Packaging Upgrades**: Built-in bundling of `google-genai` and `python-dotenv` into the desktop installer, providing out-of-the-box Gemini support.
+- **JS Exception Cleanups**: Resolved pywebview `dummy` callback drag-and-drop errors.
+
 ## v1.6.0
 
 ### New Features
