@@ -602,6 +602,13 @@ _HTML = """<!DOCTYPE html>
 
       if (window.pywebview && window.pywebview._jsApiCallback && e && e.dataTransfer) {
         try {
+          if (!window.pywebview._returnValuesCallbacks) {
+            window.pywebview._returnValuesCallbacks = {};
+          }
+          if (!window.pywebview._returnValuesCallbacks.dummy) {
+            window.pywebview._returnValuesCallbacks.dummy = {};
+          }
+          window.pywebview._returnValuesCallbacks.dummy['1'] = function() {};
           window.pywebview._jsApiCallback('dummy', { event: e }, '1');
         } catch (err) {}
       }
