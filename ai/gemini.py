@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class GeminiBackend(AIBackend):
     """Google Gemini backend via google-genai SDK."""
 
-    def __init__(self, api_key: str, model: str = "gemini-2.5-pro"):
+    def __init__(self, api_key: str, model: str = "gemini-2.5-flash"):
         try:
             from google import genai
         except ImportError:

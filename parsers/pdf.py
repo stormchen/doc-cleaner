@@ -258,13 +258,34 @@ def _optimize_image(image, max_dim=1600):
 def extract_images(filepath, dpi=200, max_pages=15):
     """
     Convert PDF pages to PIL images for AI vision mode.
-
-    Requires: pdf2image + poppler system dependency.
-    Returns an empty list if pdf2image is not installed.
-
-    Safety: capped at max_pages to prevent OOM on low-memory machines
-    (e.g. Oracle ARM with 1GB RAM). A 200 DPI A4 page ≈ 30MB in memory.
+    Uses PyMuPDF (fitz) natively as primary, and falls back to pdf2image.
     """
+    try:
+        import fitz
+        from PIL import Image
+        import io
+        
+        doc = fitz.open(filepath)
+        page_count = len(doc)
+        if page_count > max_pages:
+            logger.warning(
+                f"PDF has {page_count} pages, capping vision at {max_pages} to prevent OOM"
+            )
+        
+        pil_images = []
+        for i in range(min(page_count, max_pages)):
+            page = doc[i]
+            # Zoom factor = target_dpi / 72.0
+            zoom = dpi / 72.0
+            matrix = fitz.Matrix(zoom, zoom)
+            pix = page.get_pixmap(matrix=matrix)
+            img_data = pix.tobytes("png")
+            img = Image.open(io.BytesIO(img_data))
+            pil_images.append(_optimize_image(img))
+        return pil_images
+    except Exception as e:
+        logger.warning(f"PyMuPDF native image extraction failed: {e}. Trying pdf2image...")
+
     if not convert_from_path:
         logger.warning("pdf2image not installed — cannot extract PDF images for vision mode")
         return []

@@ -59,8 +59,9 @@ def load_prompt(config, config_path=None):
     prompt_path = config.get("ai", {}).get("prompt_template")
     translate_zh_hant = config.get("output", {}).get("translate_zh_hant", False)
 
-    if not prompt_path and translate_zh_hant:
-        prompt_path = os.path.join("prompts", "translate_zh_hant.txt")
+    if translate_zh_hant:
+        if not prompt_path or prompt_path == "prompts/default.txt":
+            prompt_path = os.path.join("prompts", "translate_zh_hant.txt")
 
     if prompt_path and not os.path.isabs(prompt_path):
         # Try relative to config dir first, then script dir
@@ -148,7 +149,7 @@ def create_ai_backend(ai_mode, config):
                 "Do NOT put API keys in config.json — it may be committed to git."
             )
             sys.exit(EXIT_NO_INPUT)
-        model = ai_config.get("gemini", {}).get("model", "gemini-2.5-pro")
+        model = ai_config.get("gemini", {}).get("model", "gemini-2.5-flash")
         try:
             from ai.gemini import GeminiBackend
             return GeminiBackend(api_key=api_key, model=model)
