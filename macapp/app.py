@@ -16,7 +16,23 @@ from pathlib import Path
 import webview
 
 from pathlib import Path
-_dotenv_path = Path(__file__).resolve().parent.parent / ".env"
+
+def get_dotenv_path():
+    exe_dir = Path(sys.executable).parent
+    cwd_dir = Path.cwd()
+    script_dir = Path(__file__).resolve().parent
+    candidates = [
+        cwd_dir / ".env",
+        exe_dir / ".env",
+        script_dir.parent / ".env",
+        script_dir / ".env",
+    ]
+    for p in candidates:
+        if p.exists():
+            return p
+    return script_dir.parent / ".env"
+
+_dotenv_path = get_dotenv_path()
 try:
     from dotenv import load_dotenv
     load_dotenv(dotenv_path=_dotenv_path, override=True)
@@ -919,7 +935,20 @@ class Api:
         Resolves symlinks before processing (mirrors CLI's security policy).
         """
         total = len(paths)
-        config_path = str(_core.SCRIPT_DIR / "config.json")
+        exe_dir = Path(sys.executable).parent
+        cwd_dir = Path.cwd()
+        script_dir = Path(_core.SCRIPT_DIR)
+        candidates = [
+            cwd_dir / "config.json",
+            exe_dir / "config.json",
+            script_dir / "config.json",
+            script_dir.parent / "config.json",
+        ]
+        config_path = str(script_dir / "config.json")
+        for p in candidates:
+            if p.exists():
+                config_path = str(p)
+                break
         config_temp = _core.load_config(config_path)
         ai_backend_name = config_temp.get("ai", {}).get("backend", "none")
         

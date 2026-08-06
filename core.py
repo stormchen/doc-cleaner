@@ -27,7 +27,22 @@ class _ErrorCapture(logging.Handler):
 def _build_env(ai="none", config_path=None):
     """Load config + create backend + load prompt. Shared setup for GUI and batch calls."""
     if config_path is None:
-        config_path = str(SCRIPT_DIR / "config.json")
+        import sys
+        exe_dir = Path(sys.executable).parent
+        cwd_dir = Path.cwd()
+        script_dir = Path(SCRIPT_DIR)
+        candidates = [
+            cwd_dir / "config.json",
+            exe_dir / "config.json",
+            script_dir / "config.json",
+            script_dir.parent / "config.json",
+        ]
+        for p in candidates:
+            if p.exists():
+                config_path = str(p)
+                break
+        else:
+            config_path = str(script_dir / "config.json")
     config = load_config(config_path)
     ai_backend = create_ai_backend(ai, config)
     prompt = load_prompt(config, config_path=config_path) if ai_backend else None
