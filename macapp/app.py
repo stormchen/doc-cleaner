@@ -600,11 +600,7 @@ _HTML = """<!DOCTYPE html>
       dz.classList.remove('hover');
       document.getElementById('file-count').textContent = _lang === 'zh' ? '讀取中…' : 'Loading…';
 
-      if (window.pywebview && window.pywebview._jsApiCallback && e && e.dataTransfer) {
-        try {
-          window.pywebview._jsApiCallback('dummy', { event: e }, '1');
-        } catch (err) {}
-      }
+      // Drag-and-drop trigger
 
       setTimeout(function() {
         pywebview.api.get_dropped_paths().then(function(paths) {
@@ -781,6 +777,10 @@ class Api:
         self._batch_lock = threading.Lock()
         self._app_info = app_info or {"version": "unknown", "author": "notoriouslab", "license": "MIT", "url": GITHUB_URL}
         self._settings = settings.load()  # D1: never raises; defaults on missing/corrupt
+
+    def dummy(self, *args, **kwargs):
+        """No-op stub for pywebview event callbacks."""
+        pass
 
     def get_app_info(self):
         """Return app metadata dict for the About overlay (D3)."""
