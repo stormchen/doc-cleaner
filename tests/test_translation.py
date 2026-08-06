@@ -35,3 +35,10 @@ def test_cli_translate_zh_hant_flag():
     parser.add_argument("--translate-zh-hant", action="store_true")
     args = parser.parse_args(["--translate-zh-hant"])
     assert args.translate_zh_hant is True
+
+
+def test_translate_en_to_zh_hant_module():
+    """Verify output.translate module function."""
+    from output.translate import translate_en_to_zh_hant
+    res = translate_en_to_zh_hant("Hello world")
+    assert "你好" in res or "世界" in res

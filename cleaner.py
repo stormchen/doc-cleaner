@@ -525,7 +525,15 @@ def process_file(filepath, ai_backend, prompt, config, output_dir, output_format
         epub_zh_hant = config.get("output", {}).get("epub_zh_hant", False)
         translate_zh_hant = config.get("output", {}).get("translate_zh_hant", False)
 
-        if epub_zh_hant or (translate_zh_hant and data is None):
+        if translate_zh_hant and data is None and text:
+            try:
+                from output.translate import translate_en_to_zh_hant
+                logger.info("  Translating English content to Traditional Chinese...")
+                text = translate_en_to_zh_hant(text)
+            except Exception as e:
+                logger.error(f"Failed to translate English text: {e}")
+
+        if epub_zh_hant or (translate_zh_hant and data is not None):
             epub_opencc_config = config.get("output", {}).get("epub_opencc_config", "s2twp")
             try:
                 from opencc import OpenCC

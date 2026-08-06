@@ -909,7 +909,6 @@ class Api:
         """
         total = len(paths)
         config, ai_backend, prompt = _core._build_env(ai="none")
-        # Inject the GUI setting into config
         config.setdefault("output", {})["epub_zh_hant"] = self._settings.get("epub_zh_hant", False)
         config.setdefault("output", {})["translate_zh_hant"] = self._settings.get("translate_zh_hant", False)
         if self._settings.get("x_auth_token"):
