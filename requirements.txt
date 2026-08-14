@@ -7,6 +7,9 @@ openpyxl>=3.0.0
 xlrd>=2.0.1
 Pillow>=9.0.0
 
+# Desktop GUI (optional for CLI, required for running GUI directly: pip install pywebview)
+# pywebview>=6.0.0
+
 # Gemini AI backend (optional: pip install google-genai python-dotenv)
 # google-genai>=1.0.0
 # python-dotenv>=1.0.0

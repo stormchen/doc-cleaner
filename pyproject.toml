@@ -65,6 +65,8 @@ requires = [
     # Gemini AI backend & environment support
     "google-genai>=1.0.0",
     "python-dotenv>=1.0.0",
+    # cryptography: pin to a version with both arm64 and x86_64 wheels for macOS universal build
+    "cryptography>=38.0.3,<45.0.0",
 ]
 
 [tool.briefcase.app.macapp.macOS]
