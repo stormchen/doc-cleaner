@@ -29,6 +29,18 @@ def _make_api():
     return api
 
 
+def _frontend_sources():
+    """Return the concatenated static front-end sources (index.html + app.js).
+
+    Replaces the old inline _HTML string as the source of truth for UI label
+    checks after the static-resource extraction."""
+    import macapp.app as appmod
+    static_dir = Path(appmod.__file__).resolve().parent / "static"
+    html = (static_dir / "index.html").read_text(encoding="utf-8")
+    js = (static_dir / "app.js").read_text(encoding="utf-8")
+    return html + "\n" + js
+
+
 # ── Task 3.1: pick_files returns real absolute paths ─────────────────────────
 
 class TestPickFiles:
@@ -257,8 +269,8 @@ class TestOutputModeResolver:
 
 class TestTraditionalChineseUI:
     def test_required_labels_present(self):
-        """All user-visible labels and buttons in _HTML are Traditional Chinese."""
-        from macapp.app import _HTML
+        """All user-visible labels and buttons in the static front-end are Traditional Chinese."""
+        frontend = _frontend_sources()
 
         required_tc = [
             "文件清洗工具",   # window title / h1
@@ -274,15 +286,75 @@ class TestTraditionalChineseUI:
             "完成",           # onComplete
         ]
         for label in required_tc:
-            assert label in _HTML, f"Missing Traditional Chinese label: {label!r}"
+            assert label in frontend, f"Missing Traditional Chinese label: {label!r}"
 
     def test_no_simplified_chinese_markers(self):
-        """_HTML does not contain obvious Simplified Chinese substitutions."""
-        from macapp.app import _HTML
+        """The static front-end has no obvious Simplified Chinese substitutions."""
+        frontend = _frontend_sources()
         # Common Simplified replacements that differ from Traditional
         simplified = ["选择", "清除选", "转换", "桌面文件"]
         for s in simplified:
-            assert s not in _HTML, f"Found Simplified Chinese: {s!r}"
+            assert s not in frontend, f"Found Simplified Chinese: {s!r}"
+
+
+# ── Batch cancellation (cancel_batch bridge + cooperative flag) ──────────────
+
+class TestCancelBatch:
+    def test_cancel_batch_returns_false_when_idle(self):
+        """cancel_batch() is a no-op returning False when nothing is running."""
+        api = _make_api()
+        assert api.cancel_batch() is False
+        assert not api._cancel_event.is_set()
+
+    def test_cancel_batch_sets_event_when_running(self):
+        """With a batch holding the lock, cancel_batch() sets the flag and returns True."""
+        api = _make_api()
+        api._batch_lock.acquire()
+        try:
+            assert api.cancel_batch() is True
+            assert api._cancel_event.is_set()
+        finally:
+            api._batch_lock.release()
+
+    def test_convert_clears_stale_cancel_flag(self):
+        """Dispatching a fresh batch clears a stale cancellation request."""
+        api = _make_api()
+        api._cancel_event.set()
+        started = threading.Event()
+        release = threading.Event()
+
+        def _slow_batch(paths, mode, custom_dir=None, output_format="md"):
+            started.set()
+            release.wait(timeout=5)
+
+        with patch.object(api, "_run_batch", side_effect=_slow_batch):
+            api.convert(["/x.docx"], "sibling")
+            assert started.wait(timeout=2), "background thread did not start"
+
+        assert not api._cancel_event.is_set(), "convert() should clear stale cancel flag"
+        release.set()
+
+    def test_run_batch_skips_remaining_after_cancel(self, tmp_path):
+        """Cancel mid-batch: remaining files are skipped, ends with onCancelled()."""
+        api = _make_api()
+        paths = [str(tmp_path / f"f{i}.docx") for i in range(3)]
+
+        fake_result = {"file": "f0.docx", "input": paths[0],
+                       "output": None, "status": "ok", "error": None}
+        processed = []
+
+        def _fake_run_one(path, *args, **kwargs):
+            processed.append(path)
+            api._cancel_event.set()  # user hits cancel while file 1 runs
+            return fake_result
+
+        with patch("macapp.app._core._build_env", return_value=({}, None, None)), \
+             patch("macapp.app._core._run_one", side_effect=_fake_run_one):
+            api._run_batch(paths, "sibling")
+
+        assert len(processed) == 1, "files after cancellation should be skipped"
+        last_call = api._window.evaluate_js.call_args_list[-1][0][0]
+        assert last_call == "onCancelled()"
 
 
 # ── Phase A: preferences, custom output folder, recursive drop ───────────────
