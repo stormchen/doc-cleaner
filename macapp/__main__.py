@@ -1,22 +1,25 @@
 def _run():
     import sys
+    import traceback
 
     try:
         import webview
-    except ImportError:
+    except Exception as e:
         sys.exit(
-            "錯誤：缺少 pywebview。請先安裝：pip install pywebview\n"
-            "Error: pywebview is required. Install with: pip install pywebview"
+            f"錯誤：無法載入 pywebview ({e})。請確認已安裝 pywebview：pip install pywebview\n"
+            f"Error: Failed to load pywebview ({e}). Install with: pip install pywebview\n"
+            f"{traceback.format_exc()}"
         )
 
     try:
         from macapp.app import main
-    except ImportError as e:
+    except Exception as e:
         sys.exit(
             f"錯誤：匯入桌面應用程式模組失敗 ({e})。\n"
             f"請確認已安裝所需依賴：pip install -r requirements.txt\n"
             f"Error: Failed to import desktop app modules ({e}).\n"
-            f"Please verify dependencies: pip install -r requirements.txt"
+            f"Please verify dependencies: pip install -r requirements.txt\n"
+            f"{traceback.format_exc()}"
         )
 
     main()
