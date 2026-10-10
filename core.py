@@ -24,7 +24,7 @@ class _ErrorCapture(logging.Handler):
         self.messages.append(record.getMessage())
 
 
-def _build_env(ai="none", config_path=None):
+def _build_env(ai="none", config_path=None, prompt_name=None):
     """Load config + create backend + load prompt. Shared setup for GUI and batch calls."""
     if config_path is None:
         import sys
@@ -45,7 +45,7 @@ def _build_env(ai="none", config_path=None):
             config_path = str(script_dir / "config.json")
     config = load_config(config_path)
     ai_backend = create_ai_backend(ai, config)
-    prompt = load_prompt(config, config_path=config_path) if ai_backend else None
+    prompt = load_prompt(config, config_path=config_path, prompt_name=prompt_name) if ai_backend else None
     return config, ai_backend, prompt
 
 
@@ -110,7 +110,7 @@ def convert_file(input_path, output_dir=None, ai="none", output_format="md"):
     return _run_one(input_path, ai_backend, prompt, config, output_dir, output_format=output_format)
 
 
-def convert_files(paths, output_resolver=None, ai="none", output_format="md", config=None, config_path=None, dry_run=False):
+def convert_files(paths, output_resolver=None, ai="none", output_format="md", config=None, config_path=None, dry_run=False, prompt_name=None):
     """
     Batch conversion. Builds config + backend + prompt once, reuses across all files.
     Continues past failing files — one error never aborts the batch.
@@ -121,14 +121,15 @@ def convert_files(paths, output_resolver=None, ai="none", output_format="md", co
     config: pre-processed config dict (optional; None loads default config.json)
     config_path: path to config file (for prompt resolution when config is provided)
     dry_run: skip writing files, preview only
+    prompt_name: prompt template name (None uses config, "auto" for content-based selection)
 
     Returns: list of {file, input, output, status, error} dicts.
     """
     if config is None:
-        config, ai_backend, prompt = _build_env(ai=ai, config_path=config_path)
+        config, ai_backend, prompt = _build_env(ai=ai, config_path=config_path, prompt_name=prompt_name)
     else:
         ai_backend = create_ai_backend(ai, config)
-        prompt = load_prompt(config, config_path=config_path) if ai_backend else None
+        prompt = load_prompt(config, config_path=config_path, prompt_name=prompt_name) if ai_backend else None
 
     results = []
     for path in paths:

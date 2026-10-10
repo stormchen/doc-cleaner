@@ -45,6 +45,44 @@ MAX_RECURSIVE_FILES = 1000
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 
+# Prompt template name → relative file path mapping.
+# Names can be used in config.json "prompt_name", CLI --prompt, and GUI selector.
+PROMPT_MAP = {
+    "default": "prompts/default.txt",
+    "general": "prompts/default.txt",
+    "technical": "prompts/technical.txt",
+    "finance": "prompts/finance.txt",
+}
+
+# Translation variants: if a <name>_zh_hant.txt exists, it's used when
+# translate_zh_hant is active.
+PROMPT_ZH_HANT_MAP = {
+    "default": "prompts/translate_zh_hant.txt",
+    "general": "prompts/translate_zh_hant.txt",
+    "technical": "prompts/technical_zh_hant.txt",
+    "finance": "prompts/finance.txt",  # finance is already zh-oriented
+}
+
+
+def resolve_prompt_path(prompt_name, translate_zh_hant=False):
+    """Resolve a prompt name to an absolute file path.
+
+    Returns the path string, or None if the name is not in PROMPT_MAP and
+    no matching file exists under prompts/.
+    """
+    if translate_zh_hant and prompt_name in PROMPT_ZH_HANT_MAP:
+        rel = PROMPT_ZH_HANT_MAP[prompt_name]
+        full = os.path.join(SCRIPT_DIR, rel)
+        if os.path.exists(full):
+            return full
+    if prompt_name in PROMPT_MAP:
+        return os.path.join(SCRIPT_DIR, PROMPT_MAP[prompt_name])
+    # Allow arbitrary names mapping to prompts/<name>.txt
+    candidate = os.path.join(SCRIPT_DIR, "prompts", f"{prompt_name}.txt")
+    if os.path.exists(candidate):
+        return candidate
+    return None
+
 
 def load_config(config_path):
     """Load JSON config, return empty dict if not found."""
@@ -54,10 +92,37 @@ def load_config(config_path):
     return {}
 
 
-def load_prompt(config, config_path=None):
-    """Load the AI prompt template from config or default."""
-    prompt_path = config.get("ai", {}).get("prompt_template")
+def load_prompt(config, config_path=None, prompt_name=None):
+    """Load the AI prompt template.
+
+    Resolution priority:
+      1. *prompt_name* argument (from CLI --prompt or GUI selector)
+      2. config["ai"]["prompt_name"]  (new: symbolic name like "technical")
+      3. config["ai"]["prompt_template"]  (legacy: file path)
+      4. "default"
+
+    When *prompt_name* is "auto", the caller is expected to call
+    ``load_prompt_for_text()`` per-file instead — this function returns
+    the sentinel string ``"__auto__"`` so callers can detect the mode.
+    """
     translate_zh_hant = config.get("output", {}).get("translate_zh_hant", False)
+    ai_config = config.get("ai", {})
+
+    # --- Determine effective prompt name ---
+    name = prompt_name or ai_config.get("prompt_name")
+
+    if name == "auto":
+        return "__auto__"
+
+    if name and name not in ("auto",):
+        path = resolve_prompt_path(name, translate_zh_hant)
+        if path and os.path.exists(path):
+            with open(path, "r", encoding="utf-8") as f:
+                return f.read()
+        logger.warning(f"Prompt name '{name}' not found, falling back to default")
+
+    # --- Legacy: prompt_template (file path) ---
+    prompt_path = ai_config.get("prompt_template")
 
     if translate_zh_hant:
         if not prompt_path or prompt_path == "prompts/default.txt":
@@ -96,6 +161,18 @@ def load_prompt(config, config_path=None):
         with open(default_path, "r", encoding="utf-8") as f:
             return f.read()
     return "Analyze this document and output JSON with keys: title, summary, refined_markdown, tags."
+
+
+def load_prompt_for_text(text, config, config_path=None):
+    """Auto-select and load the best prompt template based on document content.
+
+    Used when prompt_name is "auto".  Classifies the text, picks the
+    matching prompt name, and loads it.
+    """
+    from classifiers.doc_classifier import classify as classify_doc
+    doc_type = classify_doc(text or "")
+    logger.info(f"  [Auto-prompt] Document classified as: {doc_type}")
+    return load_prompt(config, config_path=config_path, prompt_name=doc_type)
 
 
 def warn_config_secrets(config):
@@ -150,9 +227,12 @@ def create_ai_backend(ai_mode, config):
             )
             sys.exit(EXIT_NO_INPUT)
         model = ai_config.get("gemini", {}).get("model", "gemini-2.5-flash")
+        temperature = ai_config.get("gemini", {}).get("temperature", 0.2)
+        max_output_tokens = ai_config.get("gemini", {}).get("max_output_tokens", 8192)
         try:
             from ai.gemini import GeminiBackend
-            return GeminiBackend(api_key=api_key, model=model)
+            return GeminiBackend(api_key=api_key, model=model,
+                                temperature=temperature, max_output_tokens=max_output_tokens)
         except ImportError as e:
             logger.warning(f"Gemini backend unavailable ({e}). Falling back to Raw mode...")
             return None
@@ -483,13 +563,17 @@ def process_file(filepath, ai_backend, prompt, config, output_dir, output_format
 
         raw_response = None
         if ai_backend:
+            # Auto-prompt: select the best prompt based on document content
+            effective_prompt = prompt
+            if prompt == "__auto__":
+                effective_prompt = load_prompt_for_text(text, config)
             # AI mode: send to LLM for structuring
             # Retry once on transient errors (429/503/timeout) before fallback
             max_retries = config.get("ai", {}).get("max_retries", 1)
             last_err = None
             for attempt in range(1 + max_retries):
                 try:
-                    raw_response = ai_backend.call(prompt=prompt, images=images, text=text)
+                    raw_response = ai_backend.call(prompt=effective_prompt, images=images, text=text)
                     break
                 except Exception as ai_err:
                     last_err = ai_err
@@ -762,6 +846,7 @@ def main():
     parser.add_argument("--password", default=None, help="PDF decryption password (overrides .env and config)")
     parser.add_argument("--summary", action="store_true", help="print JSON summary to stdout after processing")
     parser.add_argument("--format", "-f", choices=["md", "epub", "both"], default="md", help="output format (default: md)")
+    parser.add_argument("--prompt", "-p", choices=["auto", "default", "technical", "finance"], default=None, help="prompt template (auto: select based on content)")
     parser.add_argument("--epub-zh-hant", action="store_true", help="convert Simplified Chinese to Traditional Chinese in EPUB output")
     parser.add_argument("--translate-zh-hant", action="store_true", help="translate English content to Traditional Chinese")
     parser.add_argument("--dry-run", action="store_true", help="preview without writing files")
@@ -833,6 +918,7 @@ def main():
         config=config,
         config_path=config_path,
         dry_run=args.dry_run,
+        prompt_name=args.prompt,
     )
     results = []
     for r in raw_results:

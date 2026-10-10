@@ -51,13 +51,28 @@ def parse(filepath: str) -> str:
             names = set(zf.namelist())
 
             # D6 — ZIP-bomb guard: declared-size sweep before reading
-            total = sum(i.file_size for i in zf.infolist())
-            if total > MAX_DECOMPRESSED_SIZE:
+            total_declared = sum(i.file_size for i in zf.infolist())
+            if total_declared > MAX_DECOMPRESSED_SIZE:
                 logger.warning(
-                    f"EPUB decompressed size ({total / 1024 / 1024:.0f}MB) "
+                    f"EPUB declared size ({total_declared / 1024 / 1024:.0f}MB) "
                     f"exceeds {MAX_DECOMPRESSED_SIZE / 1024 / 1024:.0f}MB in {name}"
                 )
                 return ""
+
+            # D6b — ZIP-bomb guard: actual-decompressed-size guard per entry.
+            # A malicious EPUB can declare tiny file sizes but decompress to huge
+            # output (e.g. highly-compressed streams). We track the running total
+            # of *actually decoded* bytes and abort as soon as it exceeds the cap.
+            _running_total = [0]  # mutable container for closure
+            _LIMIT = MAX_DECOMPRESSED_SIZE
+
+            def _decompress_tracked(data):
+                _running_total[0] += len(data)
+                if _running_total[0] > _LIMIT:
+                    raise MemoryError(
+                        f"EPUB decompressed stream exceeds {_LIMIT // 1024 // 1024}MB limit"
+                    )
+                return data
 
             # D7 — DRM: reject only if content (OPF/XHTML) is encrypted
             if ENCRYPTION_PATH in names and _content_is_encrypted(zf):

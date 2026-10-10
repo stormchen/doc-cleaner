@@ -15,7 +15,8 @@ logger = logging.getLogger(__name__)
 class GeminiBackend(AIBackend):
     """Google Gemini backend via google-genai SDK."""
 
-    def __init__(self, api_key: str, model: str = "gemini-2.5-flash"):
+    def __init__(self, api_key: str, model: str = "gemini-2.5-flash",
+                 temperature: float = 0.2, max_output_tokens: int = 8192):
         try:
             from google import genai
         except ImportError:
@@ -25,6 +26,8 @@ class GeminiBackend(AIBackend):
             )
         self._client = genai.Client(api_key=api_key)
         self._model = model
+        self._temperature = temperature
+        self._max_output_tokens = max_output_tokens
 
     def call(self, prompt: str, images: Optional[list] = None, text: Optional[str] = None) -> str:
         """
@@ -38,6 +41,8 @@ class GeminiBackend(AIBackend):
         Returns:
             raw model response text
         """
+        from google.genai import types
+
         parts = [prompt]
 
         if images:
@@ -57,6 +62,10 @@ class GeminiBackend(AIBackend):
             response = self._client.models.generate_content(
                 model=self._model,
                 contents=parts,
+                config=types.GenerateContentConfig(
+                    temperature=self._temperature,
+                    max_output_tokens=self._max_output_tokens,
+                ),
             )
             return response.text or ""
         except Exception as e:

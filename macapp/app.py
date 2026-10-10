@@ -148,6 +148,7 @@ class Api:
             "output_format": self._settings.get("output_format", "md"),
             "epub_zh_hant": self._settings.get("epub_zh_hant", False),
             "translate_zh_hant": self._settings.get("translate_zh_hant", False),
+            "prompt_mode": self._settings.get("prompt_mode", "auto"),
             "x_auth_token": self._settings.get("x_auth_token"),
             "x_ct0": self._settings.get("x_ct0"),
         }
@@ -176,6 +177,11 @@ class Api:
     def set_translate_zh_hant(self, val):
         """Persist the chosen translate_zh_hant preference (bool)."""
         self._settings["translate_zh_hant"] = bool(val)
+        settings.save(self._settings)
+
+    def set_prompt_mode(self, mode):
+        """Persist the chosen prompt mode (auto/default/technical/finance)."""
+        self._settings["prompt_mode"] = mode
         settings.save(self._settings)
 
     def pick_output_folder(self):
@@ -308,7 +314,8 @@ class Api:
         if not has_key:
             ai_backend_name = "none"
 
-        config, ai_backend, prompt = _core._build_env(ai=ai_backend_name)
+        prompt_mode = self._settings.get("prompt_mode", "auto")
+        config, ai_backend, prompt = _core._build_env(ai=ai_backend_name, prompt_name=prompt_mode)
         config.setdefault("output", {})["epub_zh_hant"] = self._settings.get("epub_zh_hant", False)
         config.setdefault("output", {})["translate_zh_hant"] = self._settings.get("translate_zh_hant", False)
         if self._settings.get("x_auth_token"):
@@ -317,7 +324,7 @@ class Api:
             config.setdefault("x_article", {})["ct0"] = self._settings["x_ct0"]
 
         if ai_backend:
-            prompt = _core.load_prompt(config)
+            prompt = _core.load_prompt(config, prompt_name=prompt_mode)
 
         desktop = str(Path.home() / "Desktop")
 

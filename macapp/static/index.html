@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Doc Cleaner</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="8" y1="13" x2="16" y2="13"/>
+          <line x1="8" y1="17" x2="12" y2="17"/>
+        </svg>
+      </span>
+      <h1 data-i18n="title">文件清洗工具</h1>
+    </div>
+    <nav class="topbar-actions">
+      <button type="button" class="btn-icon" id="btn-github" data-i18n-title="githubTitle" aria-label="GitHub">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.55
+                   0-.27-.01-1.17-.02-2.12-3.2.7-3.87-1.36-3.87-1.36-.52-1.33-1.28-1.68-1.28-1.68
+                   -1.04-.71.08-.7.08-.7 1.15.08 1.76 1.19 1.76 1.19 1.03 1.75 2.69 1.25 3.34.95
+                   .1-.74.4-1.25.72-1.54-2.55-.29-5.23-1.28-5.23-5.68 0-1.26.45-2.28 1.19-3.09
+                   -.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11.1 11.1 0 0 1 5.78 0
+                   c2.21-1.49 3.18-1.18 3.18-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.83 1.19 3.09
+                   0 4.41-2.69 5.38-5.25 5.66.41.35.77 1.04.77 2.1 0 1.51-.01 2.73-.01 3.1
+                   0 .3.2.67.8.55A11.51 11.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5z"/>
+        </svg>
+      </button>
+      <button type="button" class="btn-icon" id="btn-lang" style="display:none">EN</button>
+      <button type="button" class="btn-icon" id="btn-about" data-i18n-title="aboutTitle" aria-label="About">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="9"/>
+          <line x1="12" y1="10.5" x2="12" y2="16"/>
+          <circle cx="12" cy="7.5" r="0.5" fill="currentColor"/>
+        </svg>
+      </button>
+    </nav>
+  </header>
+
+  <main class="content">
+
+    <!-- Hero drop zone -->
+    <section class="hero card" id="drop-zone" tabindex="0" role="button"
+             data-i18n-aria-label="dropZoneText" aria-label="將文件拖放至此">
+      <div class="hero-icon" aria-hidden="true">
+        <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.4"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M24 30V10"/>
+          <polyline points="15 19 24 10 33 19"/>
+          <path d="M10 30v6a4 4 0 0 0 4 4h20a4 4 0 0 0 4-4v-6"/>
+        </svg>
+      </div>
+      <p class="hero-title" data-i18n="dropZoneText">將文件拖放至此</p>
+      <p class="hero-hint" data-i18n="dropZoneHint">或使用下方按鈕加入 · 支援 PDF、Office、EPUB 等 16 種格式</p>
+      <div class="hero-actions">
+        <button type="button" class="btn btn-primary" id="btn-pick" data-i18n="pickFiles">選擇檔案</button>
+      </div>
+      <ul id="file-list" aria-live="polite"></ul>
+      <div class="meta-row">
+        <span id="file-count"></span>
+        <button type="button" class="btn-text" id="btn-clear" style="display:none" data-i18n="clearFiles">清除選擇</button>
+      </div>
+      <div class="url-row">
+        <input type="text" id="input-url" data-i18n-placeholder="urlPlaceholder"
+               placeholder="貼上 X (Twitter) 文章連結 (https://x.com/...)">
+        <button type="button" class="btn btn-secondary" id="btn-add-url" data-i18n="addUrl">新增網址</button>
+      </div>
+      <div id="notice" class="notice" style="display:none"></div>
+    </section>
+
+    <!-- Settings -->
+    <section class="card settings-card">
+      <div class="setting-block">
+        <span class="setting-label" data-i18n="outputLabel">輸出位置：</span>
+        <div class="segmented" id="seg-output" role="radiogroup" aria-label="Output location">
+          <label class="seg"><input type="radio" name="mode" value="sibling" checked><span data-i18n="outputSibling">同資料夾</span></label>
+          <label class="seg"><input type="radio" name="mode" value="desktop"><span data-i18n="outputDesktop">桌面</span></label>
+          <label class="seg"><input type="radio" name="mode" value="custom"><span data-i18n="outputCustom">選擇資料夾…</span></label>
+        </div>
+        <div id="custom-dir-row" class="custom-dir-row" style="display:none">
+          <span id="custom-dir-path" class="custom-dir-path"></span>
+          <button type="button" id="btn-change-folder" class="btn-text" data-i18n="changeFolder">變更…</button>
+        </div>
+      </div>
+
+      <div class="setting-divider" role="presentation"></div>
+
+      <div class="setting-block">
+        <span class="setting-label" data-i18n="formatLabel">輸出格式：</span>
+        <div class="segmented" id="seg-format" role="radiogroup" aria-label="Output format">
+          <label class="seg"><input type="radio" name="format" value="md" checked><span data-i18n="formatMd">Markdown (.md)</span></label>
+          <label class="seg"><input type="radio" name="format" value="epub"><span data-i18n="formatEpub">EPUB 電子書 (.epub)</span></label>
+          <label class="seg"><input type="radio" name="format" value="both"><span data-i18n="formatBoth">兩種格式 (.md + .epub)</span></label>
+        </div>
+      <div class="setting-divider" role="presentation"></div>
+
+      <div class="setting-block">
+        <span class="setting-label" data-i18n="promptLabel">提示詞模式：</span>
+        <div class="segmented" id="seg-prompt" role="radiogroup" aria-label="Prompt mode">
+          <label class="seg"><input type="radio" name="prompt_mode" value="auto" checked><span data-i18n="promptAuto">自動偵測</span></label>
+          <label class="seg"><input type="radio" name="prompt_mode" value="technical"><span data-i18n="promptTechnical">技術文件</span></label>
+          <label class="seg"><input type="radio" name="prompt_mode" value="finance"><span data-i18n="promptFinance">金融文件</span></label>
+          <label class="seg"><input type="radio" name="prompt_mode" value="default"><span data-i18n="promptDefault">通用</span></label>
+        </div>
+      </div>
+
+      <div class="setting-divider" role="presentation"></div>
+
+      <div class="setting-block setting-inline">
+        <span class="setting-label" data-i18n="langOptionsLabel">語言與翻譯：</span>
+        <label class="check"><input type="checkbox" id="chk-translate-zh-hant"><span data-i18n="translateZhHant">英文轉繁體（英文翻譯成中文）</span></label>
+        <label class="check"><input type="checkbox" id="chk-epub-zh-hant"><span data-i18n="epubZhHant">簡轉繁（中文字形轉換）</span></label>
+        <span id="api-key-status" class="api-key-status"></span>
+      </div>
+    </section>
+
+    <!-- X credentials: contextual panel, shown only when queue has an X/Twitter URL -->
+    <section class="card x-card" id="x-config-section" hidden>
+      <div class="x-head">
+        <span class="x-title">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M18.9 1.15h3.68l-8.04 9.19L24 22.85h-7.41l-5.8-7.58-6.64 7.58H.47l8.6-9.83L0 1.15h7.59l5.24 6.93zm-1.29 19.5h2.04L6.49 3.24H4.3z"/>
+          </svg>
+          X (Twitter) <span data-i18n="xCredTitle">憑證設定</span>
+        </span>
+        <button type="button" class="btn-text" id="btn-toggle-x-config" data-i18n="xToggle">顯示／收起</button>
+      </div>
+      <div id="x-config-box" style="display:none" class="x-box">
+        <p class="x-hint" data-i18n="xCredHint">轉換 X 文章需登入 Cookies；憑證僅存於本機。</p>
+        <label class="x-field">auth_token
+          <input type="password" id="input-x-auth-token" data-i18n-placeholder="xAuthTokenPh" placeholder="貼上 auth_token">
+        </label>
+        <label class="x-field">ct0
+          <input type="password" id="input-x-ct0" data-i18n-placeholder="xCt0Ph" placeholder="貼上 ct0">
+        </label>
+        <button type="button" id="btn-save-x-config" class="btn btn-secondary btn-sm" data-i18n="xSave">儲存 X 憑證</button>
+      </div>
+    </section>
+
+    <!-- Results -->
+    <section class="card results-card">
+      <div id="result-summary" class="result-summary" style="display:none"></div>
+      <div id="progress-label" class="progress-label"></div>
+      <ul id="results"></ul>
+    </section>
+
+  </main>
+
+  <!-- Sticky convert footer -->
+  <footer class="convert-bar" id="convert-bar">
+    <div class="convert-progress" id="convert-progress" style="display:none">
+      <div class="convert-progress-fill" id="convert-progress-fill"></div>
+    </div>
+    <div class="convert-bar-inner">
+      <span id="progress-status" class="convert-status" data-i18n="convertIdleHint">加入文件後即可轉換</span>
+      <div class="convert-actions">
+        <button type="button" class="btn btn-danger" id="btn-cancel" style="display:none" data-i18n="cancel">取消</button>
+        <button type="button" class="btn btn-convert" id="btn-convert" disabled data-i18n="convert">轉換</button>
+      </div>
+    </div>
+  </footer>
+
+  <!-- About overlay -->
+  <div id="about-overlay" class="overlay" role="dialog" aria-modal="true" aria-labelledby="about-name">
+    <div class="about-panel">
+      <div class="about-app-name" id="about-name">Doc Cleaner</div>
+      <div class="about-desc" data-i18n="aboutDesc">日常文件轉 Markdown · 中文友善 · 表格保留 · 16 種格式</div>
+      <div class="about-row">
+        <span class="about-row-label" data-i18n="aboutVersion">版本</span>
+        <span class="about-row-value" id="about-ver">—</span>
+      </div>
+      <div class="about-row">
+        <span class="about-row-label" data-i18n="aboutLicense">授權</span>
+        <span class="about-row-value">MIT</span>
+      </div>
+      <div class="about-row">
+        <span class="about-row-label" data-i18n="aboutAuthor">作者</span>
+        <span class="about-row-value">notoriouslab</span>
+      </div>
+      <div class="about-row">
+        <span class="about-row-label">GitHub</span>
+        <button type="button" class="btn-about-link about-row-value" id="btn-about-github">github.com/notoriouslab/doc-cleaner</button>
+      </div>
+      <div class="about-close-row">
+        <button type="button" class="btn btn-secondary" id="btn-about-close" data-i18n="aboutClose">關閉</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Markdown preview overlay -->
+  <div id="preview-overlay" class="overlay" role="dialog" aria-modal="true" aria-label="Markdown preview">
+    <div class="preview-panel">
+      <div class="preview-head">
+        <span id="preview-title" class="preview-title"></span>
+        <button type="button" class="btn btn-secondary btn-sm" id="btn-preview-close" data-i18n="aboutClose">關閉</button>
+      </div>
+      <div class="preview-body" id="preview-body"></div>
+    </div>
+  </div>
+
+  <!-- Toast stack -->
+  <div id="toast-stack" class="toast-stack" aria-live="polite"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

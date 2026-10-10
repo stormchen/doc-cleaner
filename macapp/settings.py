@@ -45,11 +45,13 @@ DEFAULTS = {
     "translate_zh_hant": False,
     "x_auth_token": None,
     "x_ct0": None,
+    "prompt_mode": "auto",
 }
 
 # Per-key validators: a stored value is accepted only if it passes, else the
 # default for that key is used (never raises).
 _VALID_OUTPUT_MODES = {"sibling", "desktop", "custom"}
+_VALID_PROMPT_MODES = {"auto", "default", "technical", "finance"}
 
 
 def _valid(key, value):
@@ -59,6 +61,8 @@ def _valid(key, value):
         # isinstance guard first: a non-str (e.g. dict/list) value would make
         # `value in <set>` raise TypeError (unhashable). Short-circuit instead.
         return isinstance(value, str) and value in _VALID_OUTPUT_MODES
+    if key == "prompt_mode":
+        return isinstance(value, str) and value in _VALID_PROMPT_MODES
     if key in ("custom_output_dir", "last_input_dir", "x_auth_token", "x_ct0"):
         return value is None or isinstance(value, str)
     if key in ("epub_zh_hant", "translate_zh_hant"):

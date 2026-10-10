@@ -26,6 +26,7 @@ def test_defaults_shape():
         "translate_zh_hant": False,
         "x_auth_token": None,
         "x_ct0": None,
+        "prompt_mode": "auto",
     }
 
 
@@ -119,3 +120,18 @@ def test_app_data_dir_is_platform_path():
     # Smoke check: returns a non-empty path ending in the app name.
     p = settings.app_data_dir()
     assert p.endswith("Doc Cleaner")
+
+
+def test_prompt_mode_persistence_and_validation(data_dir):
+    # Valid persistence
+    settings.save({"prompt_mode": "technical"})
+    assert settings.load()["prompt_mode"] == "technical"
+
+    # Invalid value falls back to default
+    data_dir.mkdir(parents=True, exist_ok=True)
+    (data_dir / "settings.json").write_text(
+        json.dumps({"prompt_mode": "invalid_mode"}),
+        encoding="utf-8",
+    )
+    assert settings.load()["prompt_mode"] == "auto"
+

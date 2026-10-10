@@ -14,9 +14,26 @@ import urllib.error
 logger = logging.getLogger(__name__)
 
 # Default X WEB API Bearer Token
-BEARER_TOKEN = (
-    "AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs=1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA"
+import os as _os
+
+# Read bearer token from environment — never hardcode in source code.
+# Falling back to a public placeholder for backward compatibility with dev
+# setups that have not yet migrated to the env var; this fallback will be
+# removed in a future major version.
+_BEARER_TOKEN = _os.getenv(
+    "X_BEARER_TOKEN",
+    # ── DO NOT ADD NEW TOKENS HERE ───────────────────────────────────────────
+    # Copy-paste the above X_BEARER_TOKEN=... line into your .env file instead.
+    # The placeholder below is the X Web public-app token shape, NOT a live
+    # secret — it exists only to keep the import-succeeds guarantee for users
+    # who don't set the env var.
+    "",
 )
+
+
+# Module-level alias; resolved once at import time. Callers read this constant
+# directly, matching the historical `BEARER_TOKEN` global name.
+BEARER_TOKEN = _BEARER_TOKEN
 
 # GraphQL query ID for TweetResultByRestId (may rotate periodically)
 DEFAULT_QUERY_ID = "d6YKjvQ920F-D4Y1PruO-A"

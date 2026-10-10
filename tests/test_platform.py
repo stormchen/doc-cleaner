@@ -142,8 +142,7 @@ class TestRevealDarwin:
 
 class TestRevealWindows:
     def test_uses_systemroot_explorer(self, tmp_path):
-        """Windows reveal passes a string command directly to CreateProcess
-        (shell=False + str avoids list2cmdline double-quoting)."""
+        """Windows reveal passes a list to subprocess.run with shell=False."""
         import os
         from parsers import _platform
 
@@ -154,14 +153,14 @@ class TestRevealWindows:
              patch.dict(os.environ, {"SystemRoot": r"C:\Windows"}):
             _platform.reveal_in_file_manager(p)
 
-        # subprocess.run receives a single string, not a list
         cmd = mock_run.call_args[0][0]
-        assert isinstance(cmd, str)
-        assert os.path.join(r"C:\Windows", "explorer.exe") in cmd
-        assert f'/select,"{p}"' in cmd
+        assert isinstance(cmd, list)
+        assert cmd[0] == os.path.join(r"C:\Windows", "explorer.exe")
+        assert cmd[1] == "/select,"
+        assert cmd[2] == p
 
     def test_path_with_spaces_quoted(self, tmp_path):
-        """Path with spaces is wrapped in quotes inside /select, argument."""
+        """Path with spaces is passed as a separate list element (no quoting needed)."""
         import os
         from parsers import _platform
 
@@ -173,7 +172,5 @@ class TestRevealWindows:
             _platform.reveal_in_file_manager(p)
 
         cmd = mock_run.call_args[0][0]
-        # Command is a string; path with spaces must be inside double-quotes
-        assert isinstance(cmd, str)
-        assert '/select,"' in cmd
-        assert cmd.endswith('"')
+        assert isinstance(cmd, list)
+        assert cmd[2] == p

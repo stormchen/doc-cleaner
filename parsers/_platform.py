@@ -121,7 +121,9 @@ def reveal_in_file_manager(path: str) -> None:
         # branch is never reached there (guarded by SYSTEM == "Windows").
         system_root = os.environ.get("SystemRoot", r"C:\Windows")
         explorer = str(Path(system_root) / "explorer.exe")
-        cmd = f'"{explorer}" /select,"{path}"'
-        subprocess.run(cmd, shell=False, check=False)
+        # shell=False requires a list — never pass a formatted string.
+        # On Windows, subprocess.list2cmdline is NOT applied when shell=False,
+        # so each path with spaces must be its own list element (not quoted).
+        subprocess.run([explorer, "/select,", path], check=False)
     else:
         subprocess.run(["xdg-open", str(Path(path).parent)], check=False)
