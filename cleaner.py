@@ -26,7 +26,7 @@ import logging
 import tempfile
 from pathlib import Path
 
-__version__ = "1.7.0"
+__version__ = "1.7.2"
 
 logger = logging.getLogger("doc-cleaner")
 

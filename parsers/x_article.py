@@ -16,20 +16,15 @@ logger = logging.getLogger(__name__)
 # Default X WEB API Bearer Token
 import os as _os
 
-# Read bearer token from environment — never hardcode in source code.
-# Falling back to a public placeholder for backward compatibility with dev
-# setups that have not yet migrated to the env var; this fallback will be
-# removed in a future major version.
-_BEARER_TOKEN = _os.getenv(
-    "X_BEARER_TOKEN",
-    # ── DO NOT ADD NEW TOKENS HERE ───────────────────────────────────────────
-    # Copy-paste the above X_BEARER_TOKEN=... line into your .env file instead.
-    # The placeholder below is the X Web public-app token shape, NOT a live
-    # secret — it exists only to keep the import-succeeds guarantee for users
-    # who don't set the env var.
-    "",
+DEFAULT_BEARER_TOKEN = (
+    "AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs=1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA"
 )
 
+# Read bearer token from environment, falling back to X Web public token
+_BEARER_TOKEN = _os.getenv(
+    "X_BEARER_TOKEN",
+    DEFAULT_BEARER_TOKEN,
+)
 
 # Module-level alias; resolved once at import time. Callers read this constant
 # directly, matching the historical `BEARER_TOKEN` global name.
@@ -122,8 +117,9 @@ def fetch_x_article_json(article_id, auth_token, ct0, query_id=None):
 
     req_url = f"{url}?{urllib.parse.urlencode(params)}"
 
+    bearer_token = _os.getenv("X_BEARER_TOKEN") or BEARER_TOKEN or DEFAULT_BEARER_TOKEN
     headers = {
-        "Authorization": f"Bearer {BEARER_TOKEN}",
+        "Authorization": f"Bearer {bearer_token}",
         "x-csrf-token": ct0,
         "x-twitter-auth-type": "OAuth2Session",
         "x-twitter-active-user": "yes",

@@ -1,4 +1,4 @@
-Doc Cleaner v1.7.0
+Doc Cleaner v1.7.2
 ==================
 
 文件清洗工具——將各種文件轉換為 Markdown 格式。

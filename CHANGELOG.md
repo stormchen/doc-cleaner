@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.7.2
+
+### Bug Fixes & Improvements
+
+- **X (Twitter) Article Bearer Token Fallback**: 恢復預設 X Web 公開客戶端 Bearer Token，修復當使用者在 `.env` 或設定中未單獨配置 `X_BEARER_TOKEN` 時，抓取 X 文章會拋出 HTTP 403 驗證失敗的錯誤。
+- **動態環境變數解析**: 改善 API 憑證解析順序，支援模組動態即時重載環境變數。
+
 ## v1.7.0
 
 ### New Features
