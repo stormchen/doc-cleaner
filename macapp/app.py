@@ -274,14 +274,17 @@ class Api:
         finally:
             self._batch_lock.release()
 
-    def _run_batch(self, paths, output_mode, custom_dir=None, output_format="md"):
+    def _run_batch(self, paths, output_mode="sibling", custom_dir=None, output_format="md"):
+        """Backward-compatibility alias for tests and callers."""
+        return self._convert_batch_worker(paths, output_mode=output_mode, custom_dir=custom_dir, output_format=output_format)
+
+    def _convert_batch_worker(self, paths, output_mode="sibling", custom_dir=None, output_format="md"):
         """
-        Build config+backend once, loop per file pushing progress to JS.
-        Resolves symlinks before processing (mirrors CLI's security policy).
-        Between files, honors a cancellation request (cancel_batch): remaining
-        files are skipped and onCancelled() is pushed instead of onComplete().
+        Build config once, delegate batch conversion to _core.convert_files,
+        pushing per-item progress and results to the JS frontend.
+        Honors self._cancel_event cooperative cancellation.
         """
-        total = len(paths)
+        desktop = str(Path.home() / "Desktop")
         exe_dir = Path(sys.executable).parent
         cwd_dir = Path.cwd()
         script_dir = Path(_core.SCRIPT_DIR)
@@ -326,8 +329,6 @@ class Api:
         if ai_backend:
             prompt = _core.load_prompt(config, prompt_name=prompt_mode)
 
-        desktop = str(Path.home() / "Desktop")
-
         # D2: custom output dir; if it's gone, fall back to sibling + notify once.
         if output_mode == "custom" and not (custom_dir and os.path.isdir(custom_dir)):
             output_mode = "sibling"
@@ -337,32 +338,38 @@ class Api:
         def _resolver(path):
             if output_mode == "desktop":
                 return desktop
-            if output_mode == "custom" and custom_dir:  # custom_dir validated above
+            if output_mode == "custom" and custom_dir:
                 return custom_dir
             if path.startswith("http://") or path.startswith("https://"):
                 return desktop
-            return str(Path(path).parent)  # sibling, and defensive fallback
+            return str(Path(path).parent)
 
-        for i, path in enumerate(paths):
-            if self._cancel_event.is_set():
-                break
+        def _on_item(result, completed, total):
+            if self._window:
+                self._window.evaluate_js(f"onProgress({completed}, {total})")
+                self._window.evaluate_js(
+                    f"onResult({json.dumps(result, ensure_ascii=False)})"
+                )
 
-            from parsers.x_article import is_x_article_url
-            if is_x_article_url(path):
-                target_path = path
-            else:
-                target_path = str(Path(path).resolve())
-
-            self._window.evaluate_js(f"onProgress({i + 1}, {total})")
-            result = _core._run_one(target_path, ai_backend, prompt, config, _resolver(target_path), output_format=output_format)
-            self._window.evaluate_js(
-                f"onResult({json.dumps(result, ensure_ascii=False)})"
-            )
+        results = _core.convert_files(
+            paths,
+            output_resolver=_resolver,
+            ai=ai_backend_name,
+            output_format=output_format,
+            config=config,
+            prompt_name=prompt_mode,
+            cancel_event=self._cancel_event,
+            on_item_done=_on_item,
+        )
 
         if self._cancel_event.is_set():
-            self._window.evaluate_js("onCancelled()")
+            if self._window:
+                self._window.evaluate_js("onCancelled()")
         else:
-            self._window.evaluate_js("onComplete()")
+            if self._window:
+                self._window.evaluate_js("onComplete()")
+
+        return results
 
     def get_dropped_paths(self):
         """Return supported file paths from a drop event (D3).
