@@ -347,6 +347,7 @@ def test_batch_e2e_cli_real_execution(tmp_path):
 
     assert summary1["total"] == 3
     assert summary1["success"] == 3
+    assert summary1["skipped"] == 0
     assert summary1["failed"] == 0
     assert len(summary1["files"]) == 3
     assert all(item["status"] == "ok" for item in summary1["files"])
@@ -357,6 +358,7 @@ def test_batch_e2e_cli_real_execution(tmp_path):
 
     # --- 第二次執行：觸發增量跳過 --skip-existing ---
     proc2 = subprocess.run(cmd, capture_output=True, text=True, cwd=str(REPO_ROOT))
+    assert proc2.returncode == 0, f"Re-running with --skip-existing should succeed with EXIT_OK (0): {proc2.stderr}"
 
     stdout_lines2 = [line.strip() for line in proc2.stdout.splitlines() if line.strip()]
     assert len(stdout_lines2) > 0
@@ -364,12 +366,16 @@ def test_batch_e2e_cli_real_execution(tmp_path):
 
     # 驗證所有檔案皆為 skipped
     assert summary2["total"] == 3
+    assert summary2["success"] == 0
+    assert summary2["skipped"] == 3
+    assert summary2["failed"] == 0
     assert len(summary2["files"]) == 3
     assert all(item["status"] == "skipped" for item in summary2["files"])
 
-    # 驗證輸出日誌包含跳過符號
+    # 驗證輸出日誌包含跳過符號及統計
     combined_log2 = proc2.stderr + proc2.stdout
     assert ("⏩" in combined_log2) or ("\\u23e9" in combined_log2)
+    assert "Done: 0/3 files processed (3 skipped)." in combined_log2
 
 
 def test_batch_e2e_cli_readme_execution(tmp_path):
@@ -393,10 +399,17 @@ def test_batch_e2e_cli_readme_execution(tmp_path):
     assert proc1.returncode == 0
     summary1 = json.loads([line.strip() for line in proc1.stdout.splitlines() if line.strip()][-1])
     assert summary1["total"] == 1
+    assert summary1["success"] == 1
+    assert summary1["skipped"] == 0
+    assert summary1["failed"] == 0
     assert summary1["files"][0]["status"] == "ok"
 
     # 第二次執行：增量跳過
     proc2 = subprocess.run(cmd, capture_output=True, text=True, cwd=str(REPO_ROOT))
+    assert proc2.returncode == 0, f"Re-running with --skip-existing on README.md should succeed with EXIT_OK (0): {proc2.stderr}"
     summary2 = json.loads([line.strip() for line in proc2.stdout.splitlines() if line.strip()][-1])
     assert summary2["total"] == 1
+    assert summary2["success"] == 0
+    assert summary2["skipped"] == 1
+    assert summary2["failed"] == 0
     assert summary2["files"][0]["status"] == "skipped"

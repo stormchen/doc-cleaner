@@ -951,21 +951,32 @@ def main():
             "status": r["status"],
         })
 
-    success = sum(1 for r in results if r["status"] in ("ok", "dry_run"))
-    logger.info(f"Done: {success}/{len(files)} files processed.")
+    converted = sum(1 for r in results if r["status"] in ("ok", "dry_run"))
+    skipped = sum(1 for r in results if r["status"] == "skipped")
+    failed = sum(1 for r in results if r["status"] not in ("ok", "dry_run", "skipped"))
+
+    if skipped > 0:
+        logger.info(f"Done: {converted}/{len(files)} files processed ({skipped} skipped).")
+    else:
+        logger.info(f"Done: {converted}/{len(files)} files processed.")
 
     # Machine-readable summary for AI agents and scripts
     if args.summary:
         summary = {
             "version": __version__,
             "total": len(files),
-            "success": success,
-            "failed": len(files) - success,
+            "success": converted,
+            "skipped": skipped,
+            "failed": failed,
             "files": results,
         }
         print(json.dumps(summary, ensure_ascii=False))
 
-    sys.exit(EXIT_OK if success == len(files) else EXIT_PARTIAL)
+    if args.skip_existing:
+        exit_code = EXIT_OK if failed == 0 else EXIT_PARTIAL
+    else:
+        exit_code = EXIT_OK if converted == len(files) else EXIT_PARTIAL
+    sys.exit(exit_code)
 
 
 if __name__ == "__main__":
