@@ -41,6 +41,16 @@ class _ThreadSafeErrorCapture(logging.Handler):
 
 
 _ErrorCapture = _ThreadSafeErrorCapture
+_GLOBAL_CAPTURE = _ThreadSafeErrorCapture()
+_CAPTURE_INITIALIZED = False
+
+
+def _ensure_capture_registered():
+    global _CAPTURE_INITIALIZED
+    if not _CAPTURE_INITIALIZED:
+        for _log in (logging.getLogger("doc-cleaner"), logging.getLogger("parsers"), logging.getLogger("classifiers")):
+            _log.addHandler(_GLOBAL_CAPTURE)
+        _CAPTURE_INITIALIZED = True
 
 
 def _calculate_concurrency(ai="none", user_concurrency=None, config=None):
@@ -113,37 +123,40 @@ def _build_env(ai="none", config_path=None, prompt_name=None):
     return config, ai_backend, prompt
 
 
-def _run_one(filepath, ai_backend, prompt, config, output_dir, output_format="md", dry_run=False):
+def _run_one(filepath, ai_backend, prompt, config, output_dir, output_format="md", dry_run=False, skip_existing=False):
     """
     Call process_file and return a GUI-shaped result dict.
-    Attaches to doc-cleaner, parsers, and classifiers loggers to capture
-    warning-and-above messages emitted during conversion.
+    Uses _GLOBAL_CAPTURE to capture warning-and-above messages emitted during conversion.
     """
-    capture = _ErrorCapture()
-    _watched = [
-        logging.getLogger("doc-cleaner"),
-        logging.getLogger("parsers"),
-        logging.getLogger("classifiers"),
-    ]
-    for _log in _watched:
-        _log.addHandler(capture)
-    try:
-        status_raw, out_path = process_file(
-            filepath, ai_backend, prompt, config, output_dir, output_format=output_format, dry_run=dry_run
-        )
-    finally:
-        for _log in _watched:
-            _log.removeHandler(capture)
+    _ensure_capture_registered()
+    _GLOBAL_CAPTURE.set_thread_target()
+
+    # 增量跳過檢查
+    if skip_existing and not dry_run:
+        target_out = _resolve_target_output_path(filepath, output_dir, output_format)
+        if _check_skip_existing(filepath, target_out):
+            return {
+                "file": Path(filepath).name,
+                "input": str(Path(filepath).resolve()) if not (isinstance(filepath, str) and (filepath.startswith("http://") or filepath.startswith("https://"))) else filepath,
+                "output": str(Path(target_out).resolve()),
+                "status": "skipped",
+                "error": "已存在最新輸出檔，跳過",
+            }
+
+    status_raw, out_path = process_file(
+        filepath, ai_backend, prompt, config, output_dir, output_format=output_format, dry_run=dry_run
+    )
+    captured = _GLOBAL_CAPTURE.get_messages()
 
     status = _STATUS_MAP.get(status_raw, "error")
     if status == "error":
-        error_msg = capture.messages[-1] if capture.messages else "轉換失敗"
+        error_msg = captured[-1] if captured else "轉換失敗"
     elif status == "skipped":
         # surface an actionable hint when any parser logged one — e.g. a modern
         # iWork file whose content can't be extracted and should be exported to
         # PDF. Scan all captured messages, not just the last (process_file also
         # logs a generic "No content extracted" line after the parser's hint).
-        if any("export" in m.lower() or "匯出" in m for m in capture.messages):
+        if any("export" in m.lower() or "匯出" in m for m in captured):
             error_msg = "此檔無可擷取的內嵌內容；請用原 App 匯出 PDF 後再轉換"
         else:
             error_msg = "未擷取到文字內容"
@@ -152,7 +165,7 @@ def _run_one(filepath, ai_backend, prompt, config, output_dir, output_format="md
 
     return {
         "file": Path(filepath).name,
-        "input": str(Path(filepath).resolve()),
+        "input": str(Path(filepath).resolve()) if not (isinstance(filepath, str) and (filepath.startswith("http://") or filepath.startswith("https://"))) else filepath,
         "output": str(Path(out_path).resolve()) if out_path else None,
         "status": status,
         "error": error_msg,
@@ -167,25 +180,46 @@ def convert_file(input_path, output_dir=None, ai="none", output_format="md"):
         status: "ok" | "skipped" | "error"
         output_dir=None writes the result beside the source file.
     """
-    input_path = str(Path(input_path).resolve())
+    input_path = str(Path(input_path).resolve()) if not (isinstance(input_path, str) and (input_path.startswith("http://") or input_path.startswith("https://"))) else input_path
     if output_dir is None:
         output_dir = str(Path(input_path).parent)
     config, ai_backend, prompt = _build_env(ai=ai)
     return _run_one(input_path, ai_backend, prompt, config, output_dir, output_format=output_format)
 
 
-def convert_files(paths, output_resolver=None, ai="none", output_format="md", config=None, config_path=None, dry_run=False, prompt_name=None):
+def convert_files(
+    paths,
+    output_resolver=None,
+    ai="none",
+    output_format="md",
+    config=None,
+    config_path=None,
+    dry_run=False,
+    prompt_name=None,
+    concurrency=None,
+    on_item_done=None,
+    on_progress=None,
+    cancel_event=None,
+    skip_existing=False,
+):
     """
     Batch conversion. Builds config + backend + prompt once, reuses across all files.
     Continues past failing files — one error never aborts the batch.
+    Supports concurrency, callbacks, cancellation, and skip_existing.
 
     paths: iterable of file path strings
     output_resolver: callable(abspath) -> output_dir string; None → sibling of each source
     ai: AI backend name ("none" for pure extraction)
+    output_format: "md" | "epub" | "both"
     config: pre-processed config dict (optional; None loads default config.json)
     config_path: path to config file (for prompt resolution when config is provided)
     dry_run: skip writing files, preview only
     prompt_name: prompt template name (None uses config, "auto" for content-based selection)
+    concurrency: int (optional; concurrency limit)
+    on_item_done: callback(result, completed, total) (optional)
+    on_progress: callback(completed, total) (optional)
+    cancel_event: threading.Event (optional)
+    skip_existing: bool (skip if newer output exists)
 
     Returns: list of {file, input, output, status, error} dicts.
     """
@@ -195,9 +229,64 @@ def convert_files(paths, output_resolver=None, ai="none", output_format="md", co
         ai_backend = create_ai_backend(ai, config)
         prompt = load_prompt(config, config_path=config_path, prompt_name=prompt_name) if ai_backend else None
 
-    results = []
-    for path in paths:
-        path = str(Path(path).resolve())
-        output_dir = output_resolver(path) if output_resolver else str(Path(path).parent)
-        results.append(_run_one(path, ai_backend, prompt, config, output_dir, output_format=output_format, dry_run=dry_run))
+    paths_list = [str(Path(p).resolve()) if not (isinstance(p, str) and (p.startswith("http://") or p.startswith("https://"))) else p for p in paths]
+    total = len(paths_list)
+    if total == 0:
+        return []
+
+    results = [None] * total
+    eff_concurrency = _calculate_concurrency(ai=ai, user_concurrency=concurrency, config=config)
+    completed_count = 0
+    lock = threading.Lock()
+
+    from concurrent.futures import ThreadPoolExecutor
+
+    def _worker(idx, p):
+        nonlocal completed_count
+        try:
+            if cancel_event and cancel_event.is_set():
+                res = {
+                    "file": Path(p).name,
+                    "input": p,
+                    "output": None,
+                    "status": "cancelled",
+                    "error": "使用者取消",
+                }
+            else:
+                out_dir = output_resolver(p) if output_resolver else str(Path(p).parent)
+                res = _run_one(
+                    p, ai_backend, prompt, config, out_dir,
+                    output_format=output_format, dry_run=dry_run, skip_existing=skip_existing
+                )
+        except Exception as e:
+            res = {
+                "file": Path(p).name,
+                "input": p,
+                "output": None,
+                "status": "error",
+                "error": str(e) or "轉換失敗",
+            }
+
+        with lock:
+            results[idx] = res
+            completed_count += 1
+            cur_done = completed_count
+
+        if on_progress:
+            try:
+                on_progress(cur_done, total)
+            except Exception:
+                pass
+        if on_item_done:
+            try:
+                on_item_done(res, cur_done, total)
+            except Exception:
+                pass
+        return res
+
+    with ThreadPoolExecutor(max_workers=eff_concurrency) as executor:
+        futures = [executor.submit(_worker, i, path) for i, path in enumerate(paths_list)]
+        for f in futures:
+            f.result()
+
     return results

@@ -91,3 +91,126 @@ def test_check_skip_existing(tmp_path):
     # URL 永遠不跳過
     assert not _check_skip_existing("https://x.com/user/article/123", str(out))
 
+
+def test_convert_files_concurrent_order_and_callbacks(tmp_path):
+    import os
+    from core import convert_files
+
+    docs = []
+    for i in range(5):
+        f = tmp_path / f"doc_{i}.txt"
+        f.write_text(f"content {i}", encoding="utf-8")
+        docs.append(str(f))
+
+    out_dir = str(tmp_path / "out")
+    os.makedirs(out_dir, exist_ok=True)
+
+    progress_calls = []
+    done_items = []
+
+    def on_prog(completed, total):
+        progress_calls.append((completed, total))
+
+    def on_item(result, completed, total):
+        done_items.append(result["file"])
+
+    results = convert_files(
+        docs,
+        output_resolver=lambda _: out_dir,
+        ai="none",
+        concurrency=3,
+        on_progress=on_prog,
+        on_item_done=on_item,
+    )
+
+    # 1. 結果順序必須與輸入順序完全一致
+    assert [r["file"] for r in results] == [f"doc_{i}.txt" for i in range(5)]
+    assert all(r["status"] == "ok" for r in results)
+
+    # 2. 進度回調次數與總數必須正確
+    assert len(progress_calls) == 5
+    assert len(done_items) == 5
+    assert progress_calls[-1] == (5, 5)
+
+
+def test_convert_files_cancellation(tmp_path):
+    import os
+    import threading
+    from core import convert_files
+
+    docs = []
+    for i in range(6):
+        f = tmp_path / f"cancel_doc_{i}.txt"
+        f.write_text(f"data {i}", encoding="utf-8")
+        docs.append(str(f))
+
+    out_dir = str(tmp_path / "out")
+    cancel_evt = threading.Event()
+
+    def on_item(result, completed, total):
+        if completed == 2:
+            cancel_evt.set()
+
+    results = convert_files(
+        docs,
+        output_resolver=lambda _: out_dir,
+        ai="none",
+        concurrency=1,
+        cancel_event=cancel_evt,
+        on_item_done=on_item,
+    )
+
+    # 驗證未執行的檔案被標記或提早中斷
+    statuses = [r["status"] for r in results]
+    assert "cancelled" in statuses or len(statuses) < len(docs) or statuses.count("ok") < 6
+
+
+def test_convert_files_skip_existing(tmp_path):
+    import os
+    from core import convert_files
+
+    f1 = tmp_path / "skip_doc1.txt"
+    f1.write_text("doc1", encoding="utf-8")
+    out_dir = str(tmp_path / "out")
+    os.makedirs(out_dir, exist_ok=True)
+
+    # 第一次執行：產生輸出檔
+    res1 = convert_files([str(f1)], output_resolver=lambda _: out_dir, ai="none", skip_existing=False)
+    assert res1[0]["status"] == "ok"
+    assert os.path.exists(res1[0]["output"])
+
+    # 第二次執行：開啟 skip_existing，應跳過
+    res2 = convert_files([str(f1)], output_resolver=lambda _: out_dir, ai="none", skip_existing=True)
+    assert res2[0]["status"] == "skipped"
+    assert res2[0]["error"] == "已存在最新輸出檔，跳過"
+
+
+def test_convert_files_empty_and_callback_exceptions(tmp_path):
+    from core import convert_files
+
+    # 1. 空列表回傳空列表
+    assert convert_files([]) == []
+
+    # 2. 回調丟出例外不應中斷轉換
+    f = tmp_path / "cb_doc.txt"
+    f.write_text("content", encoding="utf-8")
+    out_dir = str(tmp_path / "out")
+
+    def buggy_prog(completed, total):
+        raise RuntimeError("Buggy progress")
+
+    def buggy_item(res, completed, total):
+        raise RuntimeError("Buggy item")
+
+    results = convert_files(
+        [str(f)],
+        output_resolver=lambda _: out_dir,
+        ai="none",
+        on_progress=buggy_prog,
+        on_item_done=buggy_item,
+    )
+    assert len(results) == 1
+    assert results[0]["status"] == "ok"
+
+
+
