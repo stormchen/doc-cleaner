@@ -541,12 +541,12 @@ def process_file(filepath, ai_backend, prompt, config, output_dir, output_format
                 fd, tmp_path = tempfile.mkstemp(dir=output_dir, suffix=".tmp")
                 with os.fdopen(fd, "w", encoding="utf-8") as f:
                     f.write(final_text)
-                os.replace(tmp_path, output_path)
+                os.replace(tmp_path, primary_path)
             except OSError as e:
                 logger.error(f"  Write error for {filename}: {e}")
                 return "write_error", None
-            logger.info(f"  → {output_path}")
-            return "ok", output_path
+            logger.info(f"  → {primary_path}")
+            return "ok", primary_path
 
         # PII redaction (opt-in via config)
         pii_config = config.get("pii", {})
