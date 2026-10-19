@@ -223,6 +223,7 @@ def convert_files(
 
     Returns: list of {file, input, output, status, error} dicts.
     """
+    _ensure_capture_registered()
     if config is None:
         config, ai_backend, prompt = _build_env(ai=ai, config_path=config_path, prompt_name=prompt_name)
     else:

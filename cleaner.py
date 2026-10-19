@@ -849,6 +849,8 @@ def main():
     parser.add_argument("--prompt", "-p", choices=["auto", "default", "technical", "finance"], default=None, help="prompt template (auto: select based on content)")
     parser.add_argument("--epub-zh-hant", action="store_true", help="convert Simplified Chinese to Traditional Chinese in EPUB output")
     parser.add_argument("--translate-zh-hant", action="store_true", help="translate English content to Traditional Chinese")
+    parser.add_argument("--concurrency", "-j", type=int, default=None, help="maximum concurrent files to process (default: auto)")
+    parser.add_argument("--skip-existing", action="store_true", help="skip conversion if output file exists and is newer than source")
     parser.add_argument("--dry-run", action="store_true", help="preview without writing files")
     parser.add_argument("--verbose", action="store_true", help="enable debug logging")
     parser.add_argument("--version", action="version", version=f"doc-cleaner {__version__}")
@@ -909,6 +911,18 @@ def main():
         logger.info("[DRY RUN] No files will be written.")
 
     # Process (delegates to core.py — config+backend+prompt built once and reused)
+    def _cli_on_item(res, done, total):
+        st = res["status"]
+        filename = res["file"]
+        if st in ("ok", "dry_run"):
+            logger.info(f"[{done}/{total}] ✓ {filename} → {res.get('output')} ({st})")
+        elif st == "skipped":
+            logger.info(f"[{done}/{total}] ⏩ {filename} (skipped: {res.get('error')})")
+        elif st == "cancelled":
+            logger.warning(f"[{done}/{total}] ⏹ {filename} (cancelled)")
+        else:
+            logger.error(f"[{done}/{total}] ✗ {filename} (error: {res.get('error')})")
+
     from core import convert_files
     raw_results = convert_files(
         files,
@@ -919,6 +933,9 @@ def main():
         config_path=config_path,
         dry_run=args.dry_run,
         prompt_name=args.prompt,
+        concurrency=args.concurrency,
+        skip_existing=args.skip_existing,
+        on_item_done=_cli_on_item,
     )
     results = []
     for r in raw_results:
