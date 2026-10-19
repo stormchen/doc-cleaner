@@ -1,4 +1,5 @@
 """Shared conversion API — used by both CLI and GUI."""
+import os
 from pathlib import Path
 import logging
 
@@ -59,6 +60,32 @@ def _calculate_concurrency(ai="none", user_concurrency=None, config=None):
         return 1
     else:
         return 3
+
+
+def _resolve_target_output_path(filepath, output_dir, output_format="md"):
+    """Compute primary target output path for a given input file."""
+    from parsers.x_article import is_x_article_url, extract_article_id
+    if is_x_article_url(filepath):
+        art_id = extract_article_id(filepath)
+        stem = f"x_article_{art_id}"
+    else:
+        stem = Path(filepath).stem
+
+    ext = ".md" if output_format in ("md", "both") else ".epub"
+    return str(Path(output_dir) / f"{stem}{ext}")
+
+
+def _check_skip_existing(input_path, output_path):
+    """Return True if output_path exists and is newer than or equal to input_path."""
+    try:
+        if not os.path.exists(output_path):
+            return False
+        # URLs don't have local mtime, never skip by mtime
+        if input_path.startswith("http://") or input_path.startswith("https://"):
+            return False
+        return os.path.getmtime(output_path) >= os.path.getmtime(input_path)
+    except OSError:
+        return False
 
 
 def _build_env(ai="none", config_path=None, prompt_name=None):

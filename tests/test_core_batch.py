@@ -47,3 +47,47 @@ def test_thread_safe_error_capture_isolation():
     logger.removeHandler(handler)
     assert results["t1"] == ["msg_1"]
     assert results["t2"] == ["msg_2"]
+
+
+def test_resolve_target_output_path(tmp_path):
+    import os
+    from core import _resolve_target_output_path
+
+    src = str(tmp_path / "document.pdf")
+    out_dir = str(tmp_path / "out")
+
+    assert _resolve_target_output_path(src, out_dir, "md") == str(tmp_path / "out" / "document.md")
+    assert _resolve_target_output_path(src, out_dir, "epub") == str(tmp_path / "out" / "document.epub")
+    assert _resolve_target_output_path(src, out_dir, "both") == str(tmp_path / "out" / "document.md")
+
+    # X Article URL stem resolution
+    x_url = "https://x.com/user/article/123456789"
+    assert _resolve_target_output_path(x_url, out_dir, "md") == str(tmp_path / "out" / "x_article_123456789.md")
+
+
+def test_check_skip_existing(tmp_path):
+    import os
+    import time
+    from core import _check_skip_existing
+
+    src = tmp_path / "doc.txt"
+    out = tmp_path / "doc.md"
+    src.write_text("hello", encoding="utf-8")
+
+    # 輸出檔不存在 -> 不跳過
+    assert not _check_skip_existing(str(src), str(out))
+
+    # 輸出檔舊於來源 -> 不跳過
+    time.sleep(0.05)
+    src.write_text("updated", encoding="utf-8")
+    out.write_text("old", encoding="utf-8")
+    os.utime(str(out), (time.time() - 10, time.time() - 10))
+    assert not _check_skip_existing(str(src), str(out))
+
+    # 輸出檔新於來源 -> 跳過
+    os.utime(str(out), (time.time() + 10, time.time() + 10))
+    assert _check_skip_existing(str(src), str(out))
+
+    # URL 永遠不跳過
+    assert not _check_skip_existing("https://x.com/user/article/123", str(out))
+
