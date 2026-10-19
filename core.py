@@ -2,6 +2,8 @@
 from pathlib import Path
 import logging
 
+import threading
+
 from cleaner import load_config, load_prompt, create_ai_backend, process_file, SCRIPT_DIR
 
 _STATUS_MAP = {
@@ -13,15 +15,50 @@ _STATUS_MAP = {
 }
 
 
-class _ErrorCapture(logging.Handler):
-    """Captures warning-and-above messages from conversion-related loggers."""
+class _ThreadSafeErrorCapture(logging.Handler):
+    """Captures warning-and-above messages per-thread using threading.local."""
 
     def __init__(self):
         super().__init__(logging.WARNING)
-        self.messages = []
+        self._local = threading.local()
+        self.set_thread_target()
+
+    def set_thread_target(self):
+        self._local.messages = []
+
+    def get_messages(self):
+        return getattr(self._local, "messages", [])
+
+    @property
+    def messages(self):
+        return self.get_messages()
 
     def emit(self, record):
-        self.messages.append(record.getMessage())
+        messages = getattr(self._local, "messages", None)
+        if messages is not None:
+            messages.append(record.getMessage())
+
+
+_ErrorCapture = _ThreadSafeErrorCapture
+
+
+def _calculate_concurrency(ai="none", user_concurrency=None, config=None):
+    """Calculate effective concurrency based on user input, config, or AI mode."""
+    if user_concurrency is not None and isinstance(user_concurrency, int) and user_concurrency > 0:
+        return user_concurrency
+
+    cfg_concurrency = (config or {}).get("batch", {}).get("concurrency")
+    if cfg_concurrency and isinstance(cfg_concurrency, int) and cfg_concurrency > 0:
+        return cfg_concurrency
+
+    ai_mode = (ai or "none").lower()
+    if ai_mode == "none":
+        import os
+        return min(8, os.cpu_count() or 4)
+    elif ai_mode in ("ollama", "mlx"):
+        return 1
+    else:
+        return 3
 
 
 def _build_env(ai="none", config_path=None, prompt_name=None):
