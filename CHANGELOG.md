@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.8.0
+
+### New Features & Improvements
+
+- **整批轉換多執行緒並行管線 (Concurrent Batch Pipeline)**：重構 `core.convert_files`，導入 `ThreadPoolExecutor` 進行多檔案並行轉換，並嚴格維持結果順序與輸入檔案順序一致。
+- **智慧並發調度 (Intelligent Concurrency)**：根據執行模式自動配置最佳並發數（純文本提取自動運用多核 CPU、雲端 AI 預設並發 3 保護 API 速率限制、本機 AI 限制 1 保護系統資源），並提供 CLI `-j` / `--concurrency` 彈性覆蓋。
+- **增量跳過轉換 (Incremental Conversion, `--skip-existing`)**：自動比對目標輸出檔案與來源檔案修改時間（mtime），已是最新版本的檔案自動跳過，不消耗 Token 與運算資源，並在全數跳過時以 exit code 0 正常退出以支援自動化腳本。
+- **執行緒安全日誌隔離 (Thread-Safe Error Capture)**：基於 `threading.local` 實作隔離機制，避免多檔案並發轉換時的日誌與警告互相干擾。
+- **CLI 即時進度顯示**：終端動態輸出單檔轉換進度圖示（✓ 成功、⏩ 跳過、⏹ 取消、✗ 失敗），並在 `--summary` JSON 輸出中獨立標記 `skipped`。
+- **GUI 架構重構與簡化**：桌面端 `macapp/app.py` 移除手動維護的循序迴圈，全面委派給統一的核心批次管線，大幅提升維護性。
+
 ## v1.7.2
 
 ### Bug Fixes & Improvements
