@@ -1,5 +1,5 @@
 # Core dependencies (required)
-PyMuPDF>=1.23.0
+PyMuPDF>=1.23.0,<2.0
 python-docx>=0.8.11
 pandas>=1.5.0
 tabulate>=0.8.0

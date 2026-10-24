@@ -41,7 +41,8 @@ requires = [
     # GUI
     "pywebview==6.2.1",
     # PDF / document parsing
-    "PyMuPDF>=1.23.0",
+    # PyMuPDF 2.0 dropped macOS x86_64 wheels; cap below 2.0 for the universal build
+    "PyMuPDF>=1.23.0,<2.0",
     "python-docx>=0.8.11",
     # Spreadsheets — pandas pinned for cross-arch determinism (D3)
     "pandas>=2.2.3",
