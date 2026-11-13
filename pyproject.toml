@@ -40,8 +40,8 @@ requires = [
     "proxy_tools==0.1.0",
     # GUI
     "pywebview==6.2.1",
-    # PDF / document parsing
-    "PyMuPDF>=1.23.0",
+    # PDF / document parsing (cap <2.0: PyMuPDF 2.0 lacks macOS x86_64 wheel for universal build)
+    "PyMuPDF>=1.23.0,<2.0",
     "python-docx>=0.8.11",
     # Spreadsheets — pandas pinned for cross-arch determinism (D3)
     "pandas>=2.2.3",
